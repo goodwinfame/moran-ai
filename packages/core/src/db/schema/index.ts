@@ -13,5 +13,6 @@ export * from "./tension.js";
 export * from "./documents.js";
 export * from "./knowledge.js";
 export * from "./logs.js";
+export * from "./summaries.js";
 export * from "./relations.js";
 export * from "./styles.js";

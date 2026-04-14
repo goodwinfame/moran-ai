@@ -37,6 +37,8 @@ export interface AgentInvocation {
   sessionId?: string;
   /** 输入消息 */
   message: string;
+  /** System prompt 覆盖（部分 agent 需要专用 system prompt） */
+  systemPrompt?: string;
   /** 是否使用流式输出 */
   stream?: boolean;
   /** 温度覆盖 */

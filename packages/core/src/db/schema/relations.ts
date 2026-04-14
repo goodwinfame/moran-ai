@@ -12,6 +12,7 @@ import { arcs, outlines, plotThreads, timelineEvents } from "./outline.js";
 import { projects } from "./projects.js";
 import { characterRelationships, relationshipStates } from "./relationships.js";
 import { lieConfrontationTrackers, tensionAccumulators } from "./tension.js";
+import { arcSummaries, chapterSummaries } from "./summaries.js";
 import { worldSettings, worldStates } from "./world.js";
 
 export const projectsRelations = relations(projects, ({ many }) => ({
@@ -33,6 +34,8 @@ export const projectsRelations = relations(projects, ({ many }) => ({
   lieConfrontationTrackers: many(lieConfrontationTrackers),
   projectDocuments: many(projectDocuments),
   decisionLogs: many(decisionLogs),
+  chapterSummaries: many(chapterSummaries),
+  arcSummaries: many(arcSummaries),
 }));
 
 export const chaptersRelations = relations(chapters, ({ one, many }) => ({
@@ -262,6 +265,20 @@ export const knowledgeVersionsRelations = relations(knowledgeVersions, ({ one })
 export const decisionLogsRelations = relations(decisionLogs, ({ one }) => ({
   project: one(projects, {
     fields: [decisionLogs.projectId],
+    references: [projects.id],
+  }),
+}));
+
+export const chapterSummariesRelations = relations(chapterSummaries, ({ one }) => ({
+  project: one(projects, {
+    fields: [chapterSummaries.projectId],
+    references: [projects.id],
+  }),
+}));
+
+export const arcSummariesRelations = relations(arcSummaries, ({ one }) => ({
+  project: one(projects, {
+    fields: [arcSummaries.projectId],
     references: [projects.id],
   }),
 }));

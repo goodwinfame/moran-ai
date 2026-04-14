@@ -42,3 +42,6 @@ export * from "./lingxi/index.js";
 
 // Re-export jiangxin engine (匠心设计引擎)
 export * from "./jiangxin/index.js";
+
+// Re-export zaishi engine (载史归档引擎)
+export * from "./zaishi/index.js";
