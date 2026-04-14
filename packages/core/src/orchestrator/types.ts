@@ -3,6 +3,7 @@
  */
 
 import type { AgentId } from "../agents/types.js";
+import type { FullReviewResult } from "../review/types.js";
 
 /** 编排阶段 */
 export type OrchestratorPhase =
@@ -79,6 +80,8 @@ export interface WriteChapterResult {
   reviewRounds: number;
   /** 是否被螺旋检测中断 */
   spiralInterrupted: boolean;
+  /** 最后一次审校结果 */
+  lastReview?: FullReviewResult;
   /** 成本汇总 */
   cost: ChapterCostSummary;
   /** 错误信息 */

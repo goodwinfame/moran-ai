@@ -1,26 +1,26 @@
 /**
  * ChapterPipeline — 章节写作管道
  *
- * 将 Orchestrator（状态机）、WriterEngine（执笔）、Bridge（LLM 调用）
- * 三者整合为完整的"写下一章"流程。
+ * 将 Orchestrator（状态机）、WriterEngine（执笔）、ReviewEngine（明镜）、Bridge（LLM 调用）
+ * 整合为完整的"写下一章"流程。
  *
  * 流程：
  *   1. Orchestrator.startWriting() → 进入 writing 阶段
  *   2. WriterEngine.write() → 调用 Bridge 生成内容，流式推送 SSE
  *   3. Orchestrator.finishWriting() → 进入 reviewing 阶段
- *   4. 审校（M1.5）→ Orchestrator.submitReview()
+ *   4. ReviewEngine.review() → 三轮审校（AI味 + 一致性 + RUBRIC）
  *   5. 通过 → Orchestrator.finishArchiving() → done
  *   6. 未通过 → 回到 step 2 重写
- *
- * M1.4 阶段：审校逻辑使用 placeholder，始终通过。
- * M1.5 将集成明镜审校系统。
  */
 
 import type { SessionProjectBridge } from "../bridge/bridge.js";
 import { createLogger } from "../logger/index.js";
+import type { ReviewEngine } from "../review/review-engine.js";
+import type { ConsistencyContext, FullReviewResult } from "../review/types.js";
 import type { StyleManager } from "../style/style-manager.js";
 import type {
   ChapterType,
+  ForbiddenRules,
   WriterResult,
   WritingChunk,
 } from "../style/types.js";
@@ -36,24 +36,25 @@ export interface ChapterPipelineConfig {
   antiAiCheck: boolean;
   /** 是否启用流式输出 */
   streaming: boolean;
-  /** 审校是否自动通过（M1.4 placeholder） */
+  /** 审校是否自动通过（绕过 ReviewEngine，仅用 Anti-AI 结果） */
   autoPassReview: boolean;
 }
 
 const DEFAULT_PIPELINE_CONFIG: ChapterPipelineConfig = {
   antiAiCheck: true,
   streaming: true,
-  autoPassReview: true, // M1.5 集成审校后改为 false
+  autoPassReview: false, // M1.5: 默认启用完整审校
 };
 
 /**
  * ChapterPipeline — 章节写作管道
  *
- * 协调 Orchestrator ↔ WriterEngine ↔ Bridge 的完整写作流程
+ * 协调 Orchestrator ↔ WriterEngine ↔ ReviewEngine ↔ Bridge 的完整写作流程
  */
 export class ChapterPipeline {
   private readonly orchestrator: Orchestrator;
   private readonly writerEngine: WriterEngine;
+  private readonly reviewEngine: ReviewEngine | null;
   private readonly bridge: SessionProjectBridge;
   private readonly config: ChapterPipelineConfig;
 
@@ -61,10 +62,12 @@ export class ChapterPipeline {
     orchestrator: Orchestrator,
     styleManager: StyleManager,
     bridge: SessionProjectBridge,
+    reviewEngine?: ReviewEngine | null,
     config?: Partial<ChapterPipelineConfig>,
   ) {
     this.orchestrator = orchestrator;
     this.bridge = bridge;
+    this.reviewEngine = reviewEngine ?? null;
     this.config = { ...DEFAULT_PIPELINE_CONFIG, ...config };
     this.writerEngine = new WriterEngine(styleManager, {
       antiAiCheck: this.config.antiAiCheck,
@@ -86,6 +89,10 @@ export class ChapterPipeline {
     brief?: string;
     assembledContext?: string;
     moduleContents?: Record<string, string>;
+    /** 禁忌词规则（来自风格配置，传递给审校） */
+    forbidden?: ForbiddenRules;
+    /** 一致性检查上下文（Round 2 需要） */
+    consistencyContext?: ConsistencyContext;
   }): Promise<WriteChapterResult> {
     const { chapterNumber, arcNumber } = params;
     const state = this.orchestrator.getState();
@@ -103,6 +110,7 @@ export class ChapterPipeline {
       let writerResult: WriterResult | null = null;
       let reviewRounds = 0;
       let spiralInterrupted = false;
+      let lastReviewResult: FullReviewResult | null = null;
 
       // 写作-审校循环
       while (!spiralInterrupted) {
@@ -142,13 +150,15 @@ export class ChapterPipeline {
         reviewRounds += 1;
 
         // Phase 4: 审校逻辑
-        const reviewPassed = await this.review(writerResult);
+        const reviewResult = await this.review(writerResult, params);
 
         // 提交审校结果到 Orchestrator
         const { needsRewrite, spiralTriggered } = this.orchestrator.submitReview(
-          reviewPassed,
-          reviewPassed ? 90 : 60, // placeholder score
+          reviewResult.passed,
+          reviewResult.score,
         );
+
+        lastReviewResult = reviewResult;
 
         if (spiralTriggered) {
           spiralInterrupted = true;
@@ -163,7 +173,11 @@ export class ChapterPipeline {
 
         // 需要重写 — Orchestrator 已回到 writing phase
         logger.info(
-          { chapter: chapterNumber, round: reviewRounds + 1 },
+          {
+            chapter: chapterNumber,
+            round: reviewRounds + 1,
+            failReasons: reviewResult.failReasons,
+          },
           "Rewriting chapter after review failure",
         );
       }
@@ -177,6 +191,7 @@ export class ChapterPipeline {
         content: writerResult?.content,
         reviewRounds,
         spiralInterrupted,
+        lastReview: lastReviewResult ?? undefined,
         cost,
       };
     } catch (error) {
@@ -200,41 +215,106 @@ export class ChapterPipeline {
   /**
    * 审校章节
    *
-   * M1.4: placeholder — 自动通过
-   * M1.5: 集成明镜审校系统（burstiness + 逻辑一致性 + RUBRIC 文学质量）
+   * autoPassReview=true: 仅基于 Anti-AI 检测决定是否通过（快速模式）
+   * autoPassReview=false: 调用 ReviewEngine 完整三轮审校
    */
-  private async review(result: WriterResult): Promise<boolean> {
-    if (this.config.autoPassReview) {
-      // M1.4 placeholder: 仅基于 Anti-AI 检测决定是否通过
-      const passed = result.antiAiCheck.passed;
-
-      this.orchestrator.emit({
-        type: "review",
-        data: {
-          passed,
-          report: {
-            round: this.orchestrator.getState().reviewRound,
-            passed,
-            score: passed ? 85 : 60,
-            burstiness: result.antiAiCheck.burstiness,
-            issues: result.antiAiCheck.issues.map((issue) => ({
-              issue: issue.description,
-              severity: "minor" as const,
-              evidence: issue.evidence,
-            })),
-          },
-        },
-      });
-
-      return passed;
+  private async review(
+    result: WriterResult,
+    params: {
+      chapterNumber: number;
+      arcNumber: number;
+      forbidden?: ForbiddenRules;
+      consistencyContext?: ConsistencyContext;
+    },
+  ): Promise<FullReviewResult> {
+    if (this.config.autoPassReview || !this.reviewEngine) {
+      // 快速模式: 仅基于 Anti-AI 检测决定是否通过
+      return this.quickReview(result);
     }
 
-    // TODO: M1.5 — 调用明镜审校系统
-    return true;
+    // 完整审校: ReviewEngine 三轮审校
+    const reviewResult = await this.reviewEngine.review(
+      {
+        content: result.content,
+        chapterNumber: params.chapterNumber,
+        arcNumber: params.arcNumber,
+        forbidden: params.forbidden,
+        consistencyContext: params.consistencyContext,
+      },
+      this.bridge,
+      (roundResult) => {
+        // 每轮完成时推送 SSE reviewing 事件
+        this.orchestrator.emit({
+          type: "reviewing",
+          data: { round: roundResult.round },
+        });
+      },
+    );
+
+    // 追踪明镜的成本（Round 2 + Round 3 各一次 LLM 调用）
+    // 实际 token 数由 Bridge placeholder 返回 0，真正集成后会有实际值
+    this.orchestrator.trackCost("mingjing", 0, 0);
+
+    // 推送最终审校报告 SSE
+    this.orchestrator.emit({
+      type: "review",
+      data: {
+        passed: reviewResult.passed,
+        report: reviewResult.toReport(this.orchestrator.getState().reviewRound),
+      },
+    });
+
+    return reviewResult;
+  }
+
+  /**
+   * 快速审校（autoPassReview 模式）
+   *
+   * 不调用 LLM，仅基于 Anti-AI 检测结果判定
+   */
+  private quickReview(result: WriterResult): FullReviewResult {
+    const passed = result.antiAiCheck.passed;
+
+    const reviewResult: FullReviewResult = {
+      passed,
+      score: passed ? 85 : 60,
+      burstiness: result.antiAiCheck.burstiness,
+      rounds: [],
+      allIssues: result.antiAiCheck.issues.map((issue) => ({
+        issue: issue.description,
+        severity: "minor" as const,
+        evidence: issue.evidence,
+      })),
+      failReasons: passed ? [] : ["Anti-AI 检测不通过"],
+      toReport(round: number) {
+        return {
+          round,
+          passed: this.passed,
+          score: this.score,
+          burstiness: this.burstiness,
+          issues: this.allIssues,
+        };
+      },
+    };
+
+    this.orchestrator.emit({
+      type: "review",
+      data: {
+        passed,
+        report: reviewResult.toReport(this.orchestrator.getState().reviewRound),
+      },
+    });
+
+    return reviewResult;
   }
 
   /** 获取 WriterEngine 实例 */
   getWriterEngine(): WriterEngine {
     return this.writerEngine;
+  }
+
+  /** 获取 ReviewEngine 实例 */
+  getReviewEngine(): ReviewEngine | null {
+    return this.reviewEngine;
   }
 }

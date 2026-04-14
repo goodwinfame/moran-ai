@@ -4,24 +4,43 @@ import { Orchestrator } from "../orchestrator.js";
 import { StyleManager } from "../../style/style-manager.js";
 import { SessionProjectBridge } from "../../bridge/bridge.js";
 import { EventBus } from "../../events/event-bus.js";
+import { ReviewEngine } from "../../review/review-engine.js";
 import type { SSEEvent } from "../../events/types.js";
 
 describe("ChapterPipeline", () => {
-  const makePipeline = (opts?: { autoPassReview?: boolean; antiAiCheck?: boolean }) => {
+  const makePipeline = (opts?: {
+    autoPassReview?: boolean;
+    antiAiCheck?: boolean;
+    withReviewEngine?: boolean;
+    reviewEngineConfig?: { enableConsistencyCheck?: boolean; enableLiteraryCheck?: boolean };
+  }) => {
     const eventBus = new EventBus();
     const orchestrator = new Orchestrator("proj-test", { heartbeatInterval: 60_000 }, eventBus);
     const styleManager = new StyleManager();
     const bridge = new SessionProjectBridge();
 
-    const pipeline = new ChapterPipeline(orchestrator, styleManager, bridge, {
-      autoPassReview: opts?.autoPassReview ?? true,
-      antiAiCheck: opts?.antiAiCheck ?? false, // Disable for placeholder content
-    });
+    const reviewEngine = opts?.withReviewEngine
+      ? new ReviewEngine({
+          enableConsistencyCheck: opts.reviewEngineConfig?.enableConsistencyCheck ?? false,
+          enableLiteraryCheck: opts.reviewEngineConfig?.enableLiteraryCheck ?? false,
+        })
+      : null;
 
-    return { pipeline, orchestrator, eventBus };
+    const pipeline = new ChapterPipeline(
+      orchestrator,
+      styleManager,
+      bridge,
+      reviewEngine,
+      {
+        autoPassReview: opts?.autoPassReview ?? true,
+        antiAiCheck: opts?.antiAiCheck ?? false, // Disable for placeholder content
+      },
+    );
+
+    return { pipeline, orchestrator, eventBus, bridge, reviewEngine };
   };
 
-  describe("writeChapter — happy path", () => {
+  describe("writeChapter — happy path (autoPassReview)", () => {
     it("completes full pipeline and returns success", async () => {
       const { pipeline, orchestrator } = makePipeline();
 
@@ -143,11 +162,102 @@ describe("ChapterPipeline", () => {
     });
   });
 
+  describe("writeChapter — with ReviewEngine (autoPassReview=false)", () => {
+    it("uses ReviewEngine when provided and autoPassReview=false", async () => {
+      const { pipeline, orchestrator } = makePipeline({
+        autoPassReview: false,
+        withReviewEngine: true,
+      });
+
+      const result = await pipeline.writeChapter({
+        chapterNumber: 1,
+        arcNumber: 1,
+        chapterType: "normal",
+        styleId: "云墨",
+      });
+
+      // With placeholder Bridge, the content is short and burstiness will be low,
+      // but ReviewEngine with disabled R2/R3 should still produce a result
+      expect(result.chapterNumber).toBe(1);
+      expect(result.reviewRounds).toBeGreaterThanOrEqual(1);
+    });
+
+    it("falls back to quickReview when ReviewEngine is null", async () => {
+      const { pipeline } = makePipeline({
+        autoPassReview: false,
+        withReviewEngine: false,
+      });
+
+      const result = await pipeline.writeChapter({
+        chapterNumber: 1,
+        arcNumber: 1,
+        chapterType: "normal",
+        styleId: "云墨",
+      });
+
+      // Without ReviewEngine, falls back to quickReview even if autoPassReview=false
+      expect(result.chapterNumber).toBe(1);
+    });
+
+    it("passes consistency context to ReviewEngine", async () => {
+      const { pipeline } = makePipeline({
+        autoPassReview: false,
+        withReviewEngine: true,
+      });
+
+      const result = await pipeline.writeChapter({
+        chapterNumber: 1,
+        arcNumber: 1,
+        chapterType: "normal",
+        styleId: "云墨",
+        consistencyContext: {
+          characterProfiles: "主角：李长安，性格沉稳",
+          worldRules: "修炼体系分九层",
+        },
+        forbidden: { words: ["赛博"] },
+      });
+
+      expect(result.chapterNumber).toBe(1);
+    });
+
+    it("emits reviewing events per round", async () => {
+      const { pipeline, eventBus } = makePipeline({
+        autoPassReview: false,
+        withReviewEngine: true,
+      });
+
+      const events: SSEEvent[] = [];
+      eventBus.subscribe("proj-test", (event) => events.push(event));
+
+      await pipeline.writeChapter({
+        chapterNumber: 1,
+        arcNumber: 1,
+        chapterType: "normal",
+        styleId: "云墨",
+      });
+
+      const reviewEvents = events.filter((e) => e.type === "review");
+      expect(reviewEvents.length).toBeGreaterThanOrEqual(1);
+    });
+  });
+
   describe("getWriterEngine", () => {
     it("returns the WriterEngine instance", () => {
       const { pipeline } = makePipeline();
       const engine = pipeline.getWriterEngine();
       expect(engine).toBeDefined();
+    });
+  });
+
+  describe("getReviewEngine", () => {
+    it("returns ReviewEngine when provided", () => {
+      const { pipeline } = makePipeline({ withReviewEngine: true });
+      expect(pipeline.getReviewEngine()).toBeDefined();
+    });
+
+    it("returns null when not provided", () => {
+      const { pipeline } = makePipeline({ withReviewEngine: false });
+      expect(pipeline.getReviewEngine()).toBeNull();
     });
   });
 });

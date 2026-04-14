@@ -33,3 +33,6 @@ export * from "./style/index.js";
 
 // Re-export writer engine
 export * from "./writer/index.js";
+
+// Re-export review engine (明镜审校系统)
+export * from "./review/index.js";
