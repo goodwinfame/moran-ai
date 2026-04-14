@@ -57,3 +57,9 @@ export * from "./knowledge/index.js";
 
 // Re-export write-session (多章连续写作: write-next / write-loop)
 export * from "./write-session/index.js";
+
+// Re-export shuchong engine (书虫普通读者评审)
+export * from "./shuchong/index.js";
+
+// Re-export dianjing engine (点睛专业文学诊断)
+export * from "./dianjing/index.js";
