@@ -1,4 +1,5 @@
 import { defineWorkspace } from "vitest/config";
+import path from "path";
 
 export default defineWorkspace([
   // @moran/core — Unit tests (no DB)
@@ -36,13 +37,6 @@ export default defineWorkspace([
       setupFiles: ["./test/setup.ts"],
     },
   },
-  // @moran/web — Component/hook unit tests
-  {
-    test: {
-      name: "web-unit",
-      root: "./packages/web",
-      include: ["src/**/__tests__/**/*.test.{ts,tsx}"],
-      environment: "jsdom",
-    },
-  },
+  // @moran/web — Component/hook unit tests (uses own vitest.config.ts)
+  "packages/web/vitest.config.ts",
 ]);

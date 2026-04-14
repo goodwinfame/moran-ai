@@ -12,6 +12,8 @@ import { EventBus } from "@moran/core";
 import { healthRoute } from "./routes/health.js";
 import { createEventsRoute } from "./routes/events.js";
 import { createWritingRoute } from "./routes/writing.js";
+import { createProjectsRoute } from "./routes/projects.js";
+import { createChaptersRoute } from "./routes/chapters.js";
 import type { OrchestratorProvider, PipelineProvider } from "./routes/writing.js";
 import { errorHandler } from "./middleware/error-handler.js";
 
@@ -50,6 +52,8 @@ export function createApp(config: AppConfig = {}) {
 
   // ── 路由挂载 ────────────────────────────────────────────
   app.route("/", healthRoute);
+  app.route("/api/projects", createProjectsRoute());
+  app.route("/api/projects/:id/chapters", createChaptersRoute());
   app.route("/api/projects/:id/events", createEventsRoute(eventBus));
   app.route("/api/projects/:id/writing", createWritingRoute(getOrchestrator, config.getPipeline));
 

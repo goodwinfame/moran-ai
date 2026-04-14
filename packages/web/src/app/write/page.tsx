@@ -1,62 +1,111 @@
+"use client";
+
+import { useCallback } from "react";
 import { TopBar } from "@/components/layout/top-bar";
-import { Button } from "@/components/ui/button";
-import { Progress } from "@/components/ui/progress";
+import { StreamingWriteView } from "@/components/write/streaming-write-view";
+import { WriteControls } from "@/components/write/write-controls";
+import { ContextOverview } from "@/components/write/context-overview";
+import { WriteProgress } from "@/components/write/write-progress";
+import { useStreamingWrite } from "@/hooks/use-streaming-write";
+import { useProjectStore } from "@/stores/project-store";
+import { api } from "@/lib/api";
 
 export default function WritePage() {
+  const { currentProject } = useProjectStore();
+  const projectId = currentProject?.id ?? null;
+
+  const {
+    connect,
+    disconnect,
+    stage,
+    content,
+    wordCount,
+    chapterNumber,
+    budget,
+    reviewResult,
+    error,
+    reset,
+  } = useStreamingWrite(projectId);
+
+  /** Trigger single chapter write via POST, then connect SSE */
+  const handleWriteNext = useCallback(async () => {
+    if (!projectId) return;
+    reset();
+    try {
+      await api.post(`/api/projects/${projectId}/writing/next`);
+      connect();
+    } catch {
+      // writing route will emit error via SSE
+      connect();
+    }
+  }, [projectId, connect, reset]);
+
+  /** Trigger continuous writing */
+  const handleContinuous = useCallback(async () => {
+    if (!projectId) return;
+    reset();
+    try {
+      await api.post(`/api/projects/${projectId}/writing/continuous`, {
+        targetChapters: 5,
+      });
+      connect();
+    } catch {
+      connect();
+    }
+  }, [projectId, connect, reset]);
+
+  /** Stop writing */
+  const handleStop = useCallback(() => {
+    disconnect();
+    reset();
+  }, [disconnect, reset]);
+
+  /** Reset to idle */
+  const handleReset = useCallback(() => {
+    disconnect();
+    reset();
+  }, [disconnect, reset]);
+
   return (
     <div className="flex h-full flex-col">
       <TopBar
         title="✍️ 写作"
-        description="触发写作、监控写作过程、人工干预"
+        description={currentProject ? currentProject.name : "触发写作、监控写作过程"}
         actions={
-          <div className="flex gap-2">
-            <Button size="sm">写下一章</Button>
-            <Button size="sm" variant="outline">连续写作</Button>
-          </div>
+          <WriteControls
+            stage={stage}
+            onWriteNext={handleWriteNext}
+            onContinuous={handleContinuous}
+            onStop={handleStop}
+            onReset={handleReset}
+          />
         }
       />
+
       <div className="flex flex-1 overflow-hidden">
         {/* Left: Live writing area */}
-        <div className="flex-1 overflow-auto p-8">
-          <div className="mx-auto max-w-2xl">
-            <div className="rounded-lg border border-dashed border-border p-12 text-center">
-              <p className="text-lg text-muted-foreground">
-                点击「写下一章」开始写作
-              </p>
-              <p className="mt-2 text-sm text-muted-foreground">
-                执笔将以流式方式实时输出章节内容
-              </p>
-            </div>
-          </div>
+        <div className="flex-1 overflow-hidden">
+          <StreamingWriteView
+            content={content}
+            stage={stage}
+            chapterNumber={chapterNumber}
+          />
         </div>
 
         {/* Right: Context overview */}
-        <aside className="hidden w-72 border-l border-border bg-muted/30 p-4 overflow-auto lg:block">
-          <h3 className="mb-3 text-sm font-semibold text-muted-foreground">上下文概览</h3>
-          <div className="space-y-4 text-sm text-muted-foreground">
-            <div>
-              <p className="font-medium text-foreground">Token 预算</p>
-              <p>等待写作开始...</p>
-            </div>
-            <div>
-              <p className="font-medium text-foreground">出场角色</p>
-              <p>-</p>
-            </div>
-            <div>
-              <p className="font-medium text-foreground">实时字数</p>
-              <p>0 字</p>
-            </div>
-          </div>
+        <aside className="hidden w-72 shrink-0 border-l border-border bg-muted/30 overflow-auto lg:block">
+          <ContextOverview
+            stage={stage}
+            wordCount={wordCount}
+            budget={budget}
+            reviewResult={reviewResult}
+            error={error}
+          />
         </aside>
       </div>
 
       {/* Bottom: Progress bar */}
-      <div className="border-t border-border p-3">
-        <div className="flex items-center gap-4">
-          <span className="text-xs text-muted-foreground min-w-[4rem]">空闲</span>
-          <Progress value={0} className="flex-1" />
-        </div>
-      </div>
+      <WriteProgress stage={stage} />
     </div>
   );
 }

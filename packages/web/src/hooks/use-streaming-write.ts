@@ -16,7 +16,7 @@ export function useStreamingWrite(projectId: string | null) {
   const esRef = useRef<EventSource | null>(null);
 
   const connect = useCallback(() => {
-    if (!projectId) return;
+    if (!projectId || typeof EventSource === "undefined") return;
 
     // Close existing connection
     esRef.current?.close();
@@ -112,10 +112,14 @@ export function useStreamingWrite(projectId: string | null) {
     };
   }, []);
 
+  const isConnected =
+    typeof EventSource !== "undefined" &&
+    esRef.current?.readyState === EventSource.OPEN;
+
   return {
     connect,
     disconnect,
-    isConnected: esRef.current?.readyState === EventSource.OPEN,
+    isConnected,
     ...store,
   };
 }
