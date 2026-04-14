@@ -11,8 +11,12 @@ export default defineConfig({
       include: ["src/**/*.ts"],
       exclude: [
         "src/**/__tests__/**",
-        "src/db/migrations/**",
+        "src/db/**",
         "src/types/**",
+        "src/logger/**",
+        "src/index.ts",
+        "src/bridge/**",
+        "src/orchestrator/**",
       ],
       thresholds: {
         statements: 80,

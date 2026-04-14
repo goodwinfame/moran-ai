@@ -30,6 +30,9 @@ export type MemoryStability =
   | "evolving"
   | "ephemeral";
 
+/** MemorySlice 作用域 */
+export type MemoryScope = "global" | "arc" | "chapter";
+
 /** SSE 事件类型 */
 export type SSEEventType =
   | "context"
