@@ -14,3 +14,4 @@ export * from "./documents.js";
 export * from "./knowledge.js";
 export * from "./logs.js";
 export * from "./relations.js";
+export * from "./styles.js";

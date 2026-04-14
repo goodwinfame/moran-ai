@@ -5,13 +5,12 @@
  * POST /pause    — 暂停写作
  * POST /continue — 续写
  *
- * M1.3 阶段：框架实现，Orchestrator 状态机流转正确，
- * 但不实际调用 LLM（placeholder Agent 响应）。
- * M1.4+ 阶段：接入真实 Bridge → OpenCode SDK → LLM 调用链。
+ * M1.4：接入 ChapterPipeline，通过 Bridge → placeholder Agent 完成全流程。
+ * 实际的 LLM 调用链在 OpenCode SDK 集成后替换。
  */
 
 import { Hono } from "hono";
-import type { Orchestrator } from "@moran/core";
+import type { Orchestrator, ChapterPipeline } from "@moran/core";
 import { createLogger } from "@moran/core/logger";
 
 const log = createLogger("writing-routes");
@@ -19,12 +18,19 @@ const log = createLogger("writing-routes");
 /** Orchestrator 工厂 — 按 projectId 获取或创建 */
 export type OrchestratorProvider = (projectId: string) => Orchestrator | undefined;
 
+/** ChapterPipeline 工厂 — 按 projectId 获取或创建 */
+export type PipelineProvider = (projectId: string) => ChapterPipeline | undefined;
+
 /**
  * 创建写作控制路由
  *
  * @param getOrchestrator - 获取项目对应的 Orchestrator 实例
+ * @param getPipeline - 获取项目对应的 ChapterPipeline 实例（可选，M1.4+）
  */
-export function createWritingRoute(getOrchestrator: OrchestratorProvider) {
+export function createWritingRoute(
+  getOrchestrator: OrchestratorProvider,
+  getPipeline?: PipelineProvider,
+) {
   const route = new Hono();
 
   /**
@@ -74,14 +80,59 @@ export function createWritingRoute(getOrchestrator: OrchestratorProvider) {
       // 空 body 也可以，使用默认值
     }
 
+    // 尝试使用 ChapterPipeline（M1.4+）
+    const pipeline = getPipeline?.(projectId);
+    if (pipeline) {
+      // 异步执行管线，立即返回 202 Accepted
+      // 客户端通过 SSE 订阅获取实时进度
+      const chapterType = "normal" as const; // TODO: 从 brief/outline 推断
+      const styleId = "yunmo"; // TODO: 从项目配置读取
+
+      // 不 await — 火后即忘，SSE 推送进度
+      pipeline
+        .writeChapter({
+          chapterNumber,
+          arcNumber,
+          chapterType,
+          styleId,
+          brief: undefined,
+          assembledContext: undefined,
+        })
+        .then((result) => {
+          log.info(
+            { projectId, chapterNumber, success: result.success, rounds: result.reviewRounds },
+            "Chapter pipeline completed",
+          );
+        })
+        .catch((err: unknown) => {
+          const msg = err instanceof Error ? err.message : String(err);
+          log.error({ err: msg, projectId, chapterNumber }, "Chapter pipeline failed");
+        });
+
+      log.info({ projectId, chapterNumber, arcNumber, mode: "pipeline" }, "Writing started via pipeline");
+
+      return c.json(
+        {
+          status: "writing",
+          chapterNumber,
+          arcNumber,
+          mode: "pipeline",
+          message: `Started writing chapter ${chapterNumber} — subscribe to SSE for progress`,
+        },
+        202,
+      );
+    }
+
+    // 回退：仅状态转换（无 pipeline）
     try {
       orchestrator.startWriting(chapterNumber, arcNumber);
-      log.info({ projectId, chapterNumber, arcNumber }, "Writing started");
+      log.info({ projectId, chapterNumber, arcNumber, mode: "orchestrator-only" }, "Writing started");
 
       return c.json({
         status: "writing",
         chapterNumber,
         arcNumber,
+        mode: "orchestrator-only",
         message: `Started writing chapter ${chapterNumber}`,
       });
     } catch (err) {

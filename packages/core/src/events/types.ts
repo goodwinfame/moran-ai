@@ -47,7 +47,7 @@ export type SSEEvent =
   | { type: "reviewing"; data: { round: number } }
   | { type: "review"; data: { passed: boolean; report: ReviewReport } }
   | { type: "archiving"; data: { chapterNumber: number } }
-  | { type: "done"; data: { projectId: string; chapterNumber: number } }
+  | { type: "done"; data: { projectId?: string; chapterNumber: number; wordCount?: number; antiAiCheck?: { passed: boolean; burstiness: number; issueCount: number } } }
   | { type: "error"; data: { message: string; recoverable: boolean; code?: string } }
   | { type: "heartbeat"; data: { ts: number } };
 

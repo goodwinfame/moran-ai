@@ -16,3 +16,4 @@ export { DEFAULT_ORCHESTRATOR_CONFIG } from "./types.js";
 
 export { CostTracker } from "./cost-tracker.js";
 export { Orchestrator } from "./orchestrator.js";
+export { ChapterPipeline, type ChapterPipelineConfig } from "./chapter-pipeline.js";

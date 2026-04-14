@@ -1,7 +1,7 @@
 /**
  * @moran/core — 墨染核心引擎
  *
- * 导出：Agent 框架、事件总线、UNM 记忆引擎、数据库层、编排控制器、日志系统
+ * 导出：Agent 框架、事件总线、UNM 记忆引擎、数据库层、编排控制器、日志系统、风格引擎、写作引擎
  */
 
 // Re-export DB layer
@@ -27,3 +27,9 @@ export * from "./orchestrator/index.js";
 
 // Re-export bridge
 export * from "./bridge/index.js";
+
+// Re-export style engine
+export * from "./style/index.js";
+
+// Re-export writer engine
+export * from "./writer/index.js";

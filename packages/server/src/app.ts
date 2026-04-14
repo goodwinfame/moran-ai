@@ -2,7 +2,7 @@
  * Hono 应用定义 — 路由、中间件、错误处理
  *
  * 独立于 HTTP 监听器，方便测试。
- * 依赖注入模式：createApp() 接收共享实例（EventBus, OrchestratorProvider），
+ * 依赖注入模式：createApp() 接收共享实例（EventBus, OrchestratorProvider, PipelineProvider），
  * 避免全局单例，便于测试和多项目支持。
  */
 import { Hono } from "hono";
@@ -12,7 +12,7 @@ import { EventBus } from "@moran/core";
 import { healthRoute } from "./routes/health.js";
 import { createEventsRoute } from "./routes/events.js";
 import { createWritingRoute } from "./routes/writing.js";
-import type { OrchestratorProvider } from "./routes/writing.js";
+import type { OrchestratorProvider, PipelineProvider } from "./routes/writing.js";
 import { errorHandler } from "./middleware/error-handler.js";
 
 /**
@@ -23,6 +23,8 @@ export interface AppConfig {
   eventBus?: EventBus;
   /** Orchestrator 提供器 — 按 projectId 获取实例 */
   getOrchestrator?: OrchestratorProvider;
+  /** ChapterPipeline 提供器 — 按 projectId 获取实例（M1.4+） */
+  getPipeline?: PipelineProvider;
   /** CORS 来源 */
   corsOrigin?: string;
 }
@@ -49,7 +51,7 @@ export function createApp(config: AppConfig = {}) {
   // ── 路由挂载 ────────────────────────────────────────────
   app.route("/", healthRoute);
   app.route("/api/projects/:id/events", createEventsRoute(eventBus));
-  app.route("/api/projects/:id/writing", createWritingRoute(getOrchestrator));
+  app.route("/api/projects/:id/writing", createWritingRoute(getOrchestrator, config.getPipeline));
 
   // ── 全局错误处理 ────────────────────────────────────────
   app.onError(errorHandler);
@@ -61,9 +63,3 @@ export function createApp(config: AppConfig = {}) {
 
   return { app, eventBus };
 }
-
-/**
- * 默认应用实例（向后兼容 index.ts 的 import）
- */
-const { app } = createApp();
-export { app };
