@@ -48,3 +48,6 @@ export * from "./zaishi/index.js";
 
 // Re-export xidian engine (析典参考作品分析)
 export * from "./xidian/index.js";
+
+// Re-export plantser pipeline (三层Brief + 情感地雷 + Scene-Sequel)
+export * from "./plantser/index.js";
