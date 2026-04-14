@@ -4,7 +4,10 @@ import { useState, useEffect, useCallback } from "react";
 import { api } from "@/lib/api";
 import { useProjectStore, type ProjectInfo } from "@/stores/project-store";
 
-interface ProjectResponse {
+/**
+ * Raw project data from API (also used by manage panel).
+ */
+export interface ProjectListItem {
   id: string;
   title: string;
   genre: string | null;
@@ -15,8 +18,10 @@ interface ProjectResponse {
   targetWordCount: number;
 }
 
+type ProjectResponse = ProjectListItem;
+
 interface ProjectListResponse {
-  projects: ProjectResponse[];
+  projects: ProjectListItem[];
   total: number;
 }
 
