@@ -1,0 +1,21 @@
+{
+  "name": "@moran/agents",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "main": "./index.js",
+  "types": "./index.d.ts",
+  "exports": {
+    ".": {
+      "import": "./index.js",
+      "types": "./index.d.ts"
+    },
+    "./styles/*": "./styles/*",
+    "./prompts/*": "./prompts/*",
+    "./templates/*": "./templates/*"
+  },
+  "scripts": {
+    "build": "echo 'No build needed for static resources'",
+    "typecheck": "echo 'No typecheck needed for static resources'"
+  }
+}

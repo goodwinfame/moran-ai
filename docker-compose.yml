@@ -1,0 +1,46 @@
+services:
+  postgres:
+    image: postgres:17-alpine
+    environment:
+      POSTGRES_DB: moran
+      POSTGRES_USER: moran
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-moran_dev_password}
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    ports:
+      - "5432:5432"
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U moran"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+  moran-server:
+    build:
+      context: .
+      dockerfile: packages/server/Dockerfile
+    depends_on:
+      postgres:
+        condition: service_healthy
+    environment:
+      DATABASE_URL: postgresql://moran:${POSTGRES_PASSWORD:-moran_dev_password}@postgres:5432/moran
+      OPENCODE_PORT: 3100
+      OPENAI_API_KEY: ${OPENAI_API_KEY:-}
+      ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY:-}
+      GOOGLE_AI_API_KEY: ${GOOGLE_AI_API_KEY:-}
+    ports:
+      - "3200:3200"
+
+  moran-web:
+    build:
+      context: .
+      dockerfile: packages/web/Dockerfile
+    depends_on:
+      - moran-server
+    environment:
+      NEXT_PUBLIC_API_URL: http://localhost:3200
+    ports:
+      - "3000:3000"
+
+volumes:
+  pgdata:

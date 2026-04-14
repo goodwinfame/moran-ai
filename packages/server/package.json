@@ -1,0 +1,30 @@
+{
+  "name": "@moran/server",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "scripts": {
+    "build": "tsc -b",
+    "dev": "bun --watch src/index.ts",
+    "start": "bun run dist/index.js",
+    "typecheck": "tsc --noEmit",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "clean": "rimraf dist tsconfig.tsbuildinfo"
+  },
+  "dependencies": {
+    "@moran/core": "workspace:*",
+    "@moran/agents": "workspace:*",
+    "hono": "^4.7.0",
+    "@hono/node-server": "^1.14.0",
+    "zod": "^3.24.0"
+  },
+  "devDependencies": {
+    "@types/node": "^22.0.0",
+    "typescript": "^5.8.0",
+    "vitest": "^3.2.0",
+    "rimraf": "^6.0.0"
+  }
+}

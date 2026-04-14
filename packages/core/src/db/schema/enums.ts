@@ -1,0 +1,22 @@
+import { pgEnum } from "drizzle-orm/pg-core";
+
+export const projectStatusEnum = pgEnum("project_status", ["planning", "outlining", "writing", "editing", "completed"]);
+export const chapterStatusEnum = pgEnum("chapter_status", ["draft", "reviewing", "archived", "dirty"]);
+export const characterRoleEnum = pgEnum("character_role", ["protagonist", "antagonist", "supporting", "minor"]);
+export const arcTypeEnum = pgEnum("arc_type", ["positive", "negative", "flat", "corruption"]);
+export const plotThreadStatusEnum = pgEnum("plot_thread_status", ["planted", "developing", "resolved", "stale"]);
+export const significanceEnum = pgEnum("significance", ["minor", "moderate", "major", "critical"]);
+export const locationStatusEnum = pgEnum("location_status", ["active", "destroyed", "abandoned", "occupied"]);
+export const locationSignificanceEnum = pgEnum("location_significance", ["major", "moderate", "minor"]);
+export const factionStatusEnum = pgEnum("faction_status", ["active", "weakened", "destroyed", "merged"]);
+export const glossaryCategoryEnum = pgEnum("glossary_category", ["location", "organization", "power_system", "title", "object", "concept", "custom"]);
+export const memoryCategoryEnum = pgEnum("memory_category", ["guidance", "world", "characters", "consistency", "summaries", "outline"]);
+export const memoryTierEnum = pgEnum("memory_tier", ["hot", "warm", "cold"]);
+export const memoryStabilityEnum = pgEnum("memory_stability", ["immutable", "canon", "evolving", "ephemeral"]);
+export const tensionPhaseEnum = pgEnum("tension_phase", ["rising", "peak", "falling", "valley"]);
+export const lieStatusEnum = pgEnum("lie_status", ["established", "challenged", "cracking", "shattered"]);
+export const briefTypeEnum = pgEnum("brief_type", ["hard", "soft", "free"]);
+export const briefStatusEnum = pgEnum("brief_status", ["draft", "approved", "used", "outdated"]);
+export const documentCategoryEnum = pgEnum("document_category", ["brainstorm", "review", "health_report", "guide", "analysis"]);
+export const knowledgeCategoryEnum = pgEnum("knowledge_category", ["writing_craft", "genre", "style", "reference"]);
+export const decisionLevelEnum = pgEnum("decision_level", ["L1_decision", "L2_agent", "L3_system"]);
