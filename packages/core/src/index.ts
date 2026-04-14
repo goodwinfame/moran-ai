@@ -54,3 +54,6 @@ export * from "./plantser/index.js";
 
 // Re-export knowledge subsystem (知识库 + 教训自学习)
 export * from "./knowledge/index.js";
+
+// Re-export write-session (多章连续写作: write-next / write-loop)
+export * from "./write-session/index.js";
