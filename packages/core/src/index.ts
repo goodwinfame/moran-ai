@@ -36,3 +36,9 @@ export * from "./writer/index.js";
 
 // Re-export review engine (明镜审校系统)
 export * from "./review/index.js";
+
+// Re-export lingxi engine (灵犀创意脑暴)
+export * from "./lingxi/index.js";
+
+// Re-export jiangxin engine (匠心设计引擎)
+export * from "./jiangxin/index.js";
