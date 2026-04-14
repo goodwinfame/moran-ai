@@ -25,7 +25,7 @@ export type {
   AnalysisReport,
   ConsumerAgent,
   DimensionAnalysis,
-  KnowledgeEntry,
+  SettlementEntry,
   SearchMaterial,
   SearchResult,
   SettlementResult,

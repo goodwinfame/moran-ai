@@ -37,7 +37,7 @@ import type {
   AnalysisReport,
   ConsumerAgent,
   DimensionAnalysis,
-  KnowledgeEntry,
+  SettlementEntry,
   SearchMaterial,
   SearchResult,
   SettlementResult,
@@ -399,14 +399,14 @@ export function parseSettlementResponse(
   raw: string,
   sourceWork: string,
   projectId: string,
-): KnowledgeEntry[] {
+): SettlementEntry[] {
   try {
     const json = extractJson(raw);
     const parsed = JSON.parse(json) as unknown;
 
     if (!Array.isArray(parsed)) return [];
 
-    return parsed.map((item: unknown) => toKnowledgeEntry(item, sourceWork, projectId));
+    return parsed.map((item: unknown) => toSettlementEntry(item, sourceWork, projectId));
   } catch (err) {
     logger.warn({ error: err }, "Failed to parse settlement response");
     return [];
@@ -473,11 +473,11 @@ function parseConsumers(val: unknown): ConsumerAgent[] {
 
 const VALID_CATEGORIES = new Set(["writing_technique", "genre_knowledge", "style_guide", "reference_analysis"]);
 
-function toKnowledgeEntry(
+function toSettlementEntry(
   item: unknown,
   sourceWork: string,
   projectId: string,
-): KnowledgeEntry {
+): SettlementEntry {
   if (typeof item !== "object" || item === null) {
     return {
       title: "未命名",
@@ -491,11 +491,11 @@ function toKnowledgeEntry(
   }
   const obj = item as Record<string, unknown>;
   const category = typeof obj.category === "string" && VALID_CATEGORIES.has(obj.category)
-    ? obj.category as KnowledgeEntry["category"]
+    ? obj.category as SettlementEntry["category"]
     : "reference_analysis";
 
   const scopeRaw = obj.scope;
-  let scope: KnowledgeEntry["scope"] = "global";
+  let scope: SettlementEntry["scope"] = "global";
   if (typeof scopeRaw === "string") {
     if (scopeRaw === "global") {
       scope = "global";

@@ -22,3 +22,5 @@ export const knowledgeCategoryEnum = pgEnum("knowledge_category", ["writing_craf
 export const decisionLevelEnum = pgEnum("decision_level", ["L1_decision", "L2_agent", "L3_system"]);
 export const styleSourceEnum = pgEnum("style_source", ["builtin", "user", "fork"]);
 export const chapterTypeEnum = pgEnum("chapter_type", ["daily", "normal", "emotional", "action", "climax"]);
+export const lessonStatusEnum = pgEnum("lesson_status", ["pending", "active", "archived", "cancelled"]);
+export const lessonSeverityEnum = pgEnum("lesson_severity", ["critical", "major", "minor"]);

@@ -167,7 +167,7 @@ export interface AnalysisReport {
 
 // ── 知识沉淀 ──────────────────────────────────────
 
-export interface KnowledgeEntry {
+export interface SettlementEntry {
   /** 标题 */
   title: string;
   /** 内容（散文式指南） */
@@ -186,7 +186,7 @@ export interface KnowledgeEntry {
 
 export interface SettlementResult {
   /** 生成的知识库条目 */
-  entries: KnowledgeEntry[];
+  entries: SettlementEntry[];
   /** 用量 */
   usage: { inputTokens: number; outputTokens: number };
 }

@@ -51,3 +51,6 @@ export * from "./xidian/index.js";
 
 // Re-export plantser pipeline (三层Brief + 情感地雷 + Scene-Sequel)
 export * from "./plantser/index.js";
+
+// Re-export knowledge subsystem (知识库 + 教训自学习)
+export * from "./knowledge/index.js";
