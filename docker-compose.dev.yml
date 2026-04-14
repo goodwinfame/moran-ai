@@ -1,0 +1,37 @@
+# docker-compose.dev.yml — Development environment with hot-reload and monitoring
+# Usage: docker compose -f docker-compose.dev.yml up -d
+services:
+  postgres:
+    image: postgres:17-alpine
+    environment:
+      POSTGRES_DB: moran
+      POSTGRES_USER: moran
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-moran_dev_password}
+    volumes:
+      - pgdata-dev:/var/lib/postgresql/data
+    ports:
+      - "5432:5432"
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U moran"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+  pgadmin:
+    image: dpage/pgadmin4:latest
+    environment:
+      PGADMIN_DEFAULT_EMAIL: ${PGADMIN_EMAIL:-admin@moran.dev}
+      PGADMIN_DEFAULT_PASSWORD: ${PGADMIN_PASSWORD:-admin}
+      PGADMIN_CONFIG_SERVER_MODE: "False"
+    ports:
+      - "5050:80"
+    depends_on:
+      postgres:
+        condition: service_healthy
+    volumes:
+      - pgadmin-data:/var/lib/pgadmin
+      - ./scripts/pgadmin-servers.json:/pgadmin4/servers.json:ro
+
+volumes:
+  pgdata-dev:
+  pgadmin-data:

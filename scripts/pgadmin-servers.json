@@ -1,0 +1,14 @@
+{
+  "Servers": {
+    "1": {
+      "Name": "MoRan Dev",
+      "Group": "Servers",
+      "Host": "postgres",
+      "Port": 5432,
+      "MaintenanceDB": "moran",
+      "Username": "moran",
+      "SSLMode": "prefer",
+      "PassFile": ""
+    }
+  }
+}

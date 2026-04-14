@@ -4,6 +4,7 @@ COPY package.json pnpm-workspace.yaml pnpm-lock.yaml ./
 COPY packages/web/package.json packages/web/
 RUN corepack enable && pnpm install --frozen-lockfile
 COPY packages/web/ packages/web/
+ENV NEXT_OUTPUT_STANDALONE=true
 RUN pnpm --filter @moran/web build
 
 FROM node:22-alpine AS runner
