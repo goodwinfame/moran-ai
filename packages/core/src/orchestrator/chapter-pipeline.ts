@@ -27,6 +27,8 @@ import type {
 import { WriterEngine } from "../writer/writer-engine.js";
 import type { Orchestrator } from "./orchestrator.js";
 import type { WriteChapterResult } from "./types.js";
+import type { SelectionResult, VersionSelectorConfig } from "./version-selector.js";
+import { VersionSelector } from "./version-selector.js";
 
 const logger = createLogger("chapter-pipeline");
 
@@ -38,12 +40,15 @@ export interface ChapterPipelineConfig {
   streaming: boolean;
   /** 审校是否自动通过（绕过 ReviewEngine，仅用 Anti-AI 结果） */
   autoPassReview: boolean;
+  /** 多版本择优配置（null = 不启用） */
+  multiVersion: Partial<VersionSelectorConfig> | null;
 }
 
 const DEFAULT_PIPELINE_CONFIG: ChapterPipelineConfig = {
   antiAiCheck: true,
   streaming: true,
   autoPassReview: false, // M1.5: 默认启用完整审校
+  multiVersion: null,   // M4.1: 默认不启用多版本
 };
 
 /**
@@ -92,6 +97,31 @@ export class ChapterPipeline {
     /** 禁忌词规则（来自风格配置，传递给审校） */
     forbidden?: ForbiddenRules;
     /** 一致性检查上下文（Round 2 需要） */
+    consistencyContext?: ConsistencyContext;
+    /** 是否启用多版本择优（覆盖 pipeline config） */
+    multiVersion?: boolean;
+  }): Promise<WriteChapterResult> {
+    // 判断是否走多版本模式
+    const useMultiVersion = params.multiVersion ?? this.config.multiVersion !== null;
+
+    if (useMultiVersion && this.config.multiVersion !== null) {
+      return this.writeChapterMultiVersion(params);
+    }
+
+    return this.writeChapterSingle(params);
+  }
+
+  // ── 单版本写作流程（原有逻辑） ──────────────────────
+
+  private async writeChapterSingle(params: {
+    chapterNumber: number;
+    arcNumber: number;
+    chapterType: ChapterType;
+    styleId: string;
+    brief?: string;
+    assembledContext?: string;
+    moduleContents?: Record<string, string>;
+    forbidden?: ForbiddenRules;
     consistencyContext?: ConsistencyContext;
   }): Promise<WriteChapterResult> {
     const { chapterNumber, arcNumber } = params;
@@ -316,5 +346,127 @@ export class ChapterPipeline {
   /** 获取 ReviewEngine 实例 */
   getReviewEngine(): ReviewEngine | null {
     return this.reviewEngine;
+  }
+
+  // ── 多版本写作流程 (M4.1) ──────────────────────────────
+
+  /**
+   * 多版本择优写作流程
+   *
+   * 1. startWriting → writing phase
+   * 2. VersionSelector.selectBest → 生成 N 版本各自审校
+   * 3. 选出最优版本 → finishArchiving
+   */
+  private async writeChapterMultiVersion(params: {
+    chapterNumber: number;
+    arcNumber: number;
+    chapterType: ChapterType;
+    styleId: string;
+    brief?: string;
+    assembledContext?: string;
+    moduleContents?: Record<string, string>;
+    forbidden?: ForbiddenRules;
+    consistencyContext?: ConsistencyContext;
+  }): Promise<WriteChapterResult> {
+    const { chapterNumber, arcNumber } = params;
+    const state = this.orchestrator.getState();
+
+    logger.info(
+      { chapter: chapterNumber, arc: arcNumber, project: state.projectId },
+      "Chapter pipeline starting (multi-version mode)",
+    );
+
+    try {
+      // Phase 1: 开始写作
+      this.orchestrator.startWriting(chapterNumber, arcNumber);
+
+      // Phase 2: 多版本择优
+      const selector = new VersionSelector(
+        this.writerEngine.getStyleManager(),
+        this.bridge,
+        this.reviewEngine,
+        this.config.multiVersion ?? undefined,
+      );
+
+      const selectionResult: SelectionResult = await selector.selectBest({
+        projectId: state.projectId,
+        chapterNumber: params.chapterNumber,
+        arcNumber: params.arcNumber,
+        chapterType: params.chapterType,
+        styleId: params.styleId,
+        brief: params.brief,
+        assembledContext: params.assembledContext,
+        moduleContents: params.moduleContents,
+        forbidden: params.forbidden,
+        consistencyContext: params.consistencyContext,
+      });
+
+      // 推送最终选中版本的内容
+      this.orchestrator.emit({
+        type: "writing",
+        data: {
+          chunk: selectionResult.selected.content,
+          wordCount: selectionResult.selected.wordCount,
+        },
+      });
+
+      // 追踪所有版本的成本
+      for (const candidate of selectionResult.candidates) {
+        this.orchestrator.trackCost(
+          "zhibi",
+          candidate.writerResult.usage.inputTokens,
+          candidate.writerResult.usage.outputTokens,
+        );
+      }
+
+      // Phase 3: 提交审校结果
+      this.orchestrator.finishWriting();
+      this.orchestrator.submitReview(
+        selectionResult.selected.passed,
+        selectionResult.selected.score,
+      );
+
+      // Phase 4: 归档
+      this.orchestrator.finishArchiving();
+
+      // 推送审校报告
+      if (selectionResult.selected.reviewResult) {
+        this.orchestrator.emit({
+          type: "review",
+          data: {
+            passed: selectionResult.selected.passed,
+            report: selectionResult.selected.reviewResult.toReport(1),
+          },
+        });
+      }
+
+      // 汇总结果
+      const cost = this.orchestrator.getCostSummary();
+
+      return {
+        success: selectionResult.hasPassingVersion,
+        chapterNumber,
+        content: selectionResult.selected.content,
+        reviewRounds: selectionResult.totalVersions,
+        spiralInterrupted: false,
+        lastReview: selectionResult.selected.reviewResult ?? undefined,
+        cost,
+        multiVersionResult: selectionResult,
+      };
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error);
+      logger.error({ error: message, chapter: chapterNumber }, "Multi-version pipeline failed");
+
+      this.orchestrator.abort(`Multi-version pipeline error: ${message}`);
+
+      return {
+        success: false,
+        chapterNumber,
+        reviewRounds: 0,
+        spiralInterrupted: false,
+        cost: this.orchestrator.getCostSummary(),
+        error: message,
+      };
+    }
   }
 }

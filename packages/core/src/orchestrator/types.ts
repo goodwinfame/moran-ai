@@ -4,6 +4,7 @@
 
 import type { AgentId } from "../agents/types.js";
 import type { FullReviewResult } from "../review/types.js";
+import type { SelectionResult } from "./version-selector.js";
 
 /** 编排阶段 */
 export type OrchestratorPhase =
@@ -86,6 +87,8 @@ export interface WriteChapterResult {
   cost: ChapterCostSummary;
   /** 错误信息 */
   error?: string;
+  /** 多版本择优结果（M4.1，仅多版本模式下有值） */
+  multiVersionResult?: SelectionResult;
 }
 
 /** 编排器配置 */
