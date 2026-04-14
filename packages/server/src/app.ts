@@ -26,6 +26,7 @@ import { createTimelineRoute } from "./routes/timeline.js";
 import { createVersionsRoute } from "./routes/versions.js";
 import { createReaderReviewRoute } from "./routes/reader-review.js";
 import { createDiagnosisRoute } from "./routes/diagnosis.js";
+import { createExportRoute } from "./routes/export.js";
 import type { OrchestratorProvider, PipelineProvider } from "./routes/writing.js";
 import { errorHandler } from "./middleware/error-handler.js";
 
@@ -79,6 +80,7 @@ export function createApp(config: AppConfig = {}) {
   app.route("/api/projects/:id/versions", createVersionsRoute());
   app.route("/api/projects/:id/reader-review", createReaderReviewRoute());
   app.route("/api/projects/:id/diagnosis", createDiagnosisRoute());
+  app.route("/api/projects/:id/export", createExportRoute());
   app.route("/api/projects/:id/writing", createWritingRoute(getOrchestrator, config.getPipeline));
 
   // ── 全局错误处理 ────────────────────────────────────────

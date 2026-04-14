@@ -15,17 +15,18 @@
     "clean": "rimraf dist tsconfig.tsbuildinfo"
   },
   "dependencies": {
-    "@moran/core": "workspace:*",
-    "@moran/agents": "workspace:*",
-    "@opencode-ai/sdk": "^1.4.0",
-    "hono": "^4.7.0",
     "@hono/node-server": "^1.14.0",
+    "@moran/agents": "workspace:*",
+    "@moran/core": "workspace:*",
+    "@opencode-ai/sdk": "^1.4.0",
+    "epub-gen-memory": "^1.1.2",
+    "hono": "^4.7.0",
     "zod": "^3.24.0"
   },
   "devDependencies": {
     "@types/node": "^22.0.0",
+    "rimraf": "^6.0.0",
     "typescript": "^5.8.0",
-    "vitest": "^3.2.0",
-    "rimraf": "^6.0.0"
+    "vitest": "^3.2.0"
   }
 }
