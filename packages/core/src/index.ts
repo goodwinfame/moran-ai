@@ -45,3 +45,6 @@ export * from "./jiangxin/index.js";
 
 // Re-export zaishi engine (载史归档引擎)
 export * from "./zaishi/index.js";
+
+// Re-export xidian engine (析典参考作品分析)
+export * from "./xidian/index.js";
