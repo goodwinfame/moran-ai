@@ -21,6 +21,8 @@ import { createWorldRoute } from "./routes/world.js";
 import { createCharactersRoute } from "./routes/characters.js";
 import { createOutlineRoute } from "./routes/outline.js";
 import { createStylesRoute } from "./routes/styles.js";
+import { createLocationsRoute } from "./routes/locations.js";
+import { createTimelineRoute } from "./routes/timeline.js";
 import type { OrchestratorProvider, PipelineProvider } from "./routes/writing.js";
 import { errorHandler } from "./middleware/error-handler.js";
 
@@ -69,6 +71,8 @@ export function createApp(config: AppConfig = {}) {
   app.route("/api/projects/:id/characters", createCharactersRoute());
   app.route("/api/projects/:id/outline", createOutlineRoute());
   app.route("/api/projects/:id/styles", createStylesRoute());
+  app.route("/api/projects/:id/locations", createLocationsRoute());
+  app.route("/api/projects/:id/timeline", createTimelineRoute());
   app.route("/api/projects/:id/writing", createWritingRoute(getOrchestrator, config.getPipeline));
 
   // ── 全局错误处理 ────────────────────────────────────────
