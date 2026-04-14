@@ -16,6 +16,7 @@ import { createProjectsRoute } from "./routes/projects.js";
 import { createChaptersRoute } from "./routes/chapters.js";
 import { createReviewsRoute } from "./routes/reviews.js";
 import { createStatsRoute } from "./routes/stats.js";
+import { createAnalysisRoute } from "./routes/analysis.js";
 import type { OrchestratorProvider, PipelineProvider } from "./routes/writing.js";
 import { errorHandler } from "./middleware/error-handler.js";
 
@@ -59,6 +60,7 @@ export function createApp(config: AppConfig = {}) {
   app.route("/api/projects/:id/events", createEventsRoute(eventBus));
   app.route("/api/projects/:id/reviews", createReviewsRoute());
   app.route("/api/projects/:id/stats", createStatsRoute());
+  app.route("/api/projects/:id/analysis", createAnalysisRoute());
   app.route("/api/projects/:id/writing", createWritingRoute(getOrchestrator, config.getPipeline));
 
   // ── 全局错误处理 ────────────────────────────────────────
