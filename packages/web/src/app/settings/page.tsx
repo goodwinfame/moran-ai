@@ -1,10 +1,23 @@
+"use client";
+
 import { TopBar } from "@/components/layout/top-bar";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { useProjectStore } from "@/stores/project-store";
+import { WorldEditor } from "@/components/settings/world-editor";
+import { CharacterEditor } from "@/components/settings/character-editor";
+import { OutlineEditor } from "@/components/settings/outline-editor";
+import { StyleEditor } from "@/components/settings/style-editor";
 
 export default function SettingsPage() {
+  const { currentProject } = useProjectStore();
+  const projectId = currentProject?.id ?? null;
+
   return (
     <div className="flex h-full flex-col">
-      <TopBar title="⚙️ 设定" description="世界观、角色、大纲、风格与系统配置" />
+      <TopBar
+        title="设定"
+        description={currentProject ? currentProject.name : "世界观、角色、大纲、风格与系统配置"}
+      />
       <div className="flex-1 overflow-auto p-6">
         <Tabs defaultValue="world" className="w-full">
           <TabsList>
@@ -18,27 +31,19 @@ export default function SettingsPage() {
           </TabsList>
 
           <TabsContent value="world" className="mt-4">
-            <div className="rounded-lg border border-dashed border-border p-8 text-center">
-              <p className="text-muted-foreground">世界观编辑器 — 开放式子系统管理</p>
-            </div>
+            <WorldEditor projectId={projectId} />
           </TabsContent>
 
           <TabsContent value="characters" className="mt-4">
-            <div className="rounded-lg border border-dashed border-border p-8 text-center">
-              <p className="text-muted-foreground">角色管理 — 四维心理模型 + 关系图谱</p>
-            </div>
+            <CharacterEditor projectId={projectId} />
           </TabsContent>
 
           <TabsContent value="outline" className="mt-4">
-            <div className="rounded-lg border border-dashed border-border p-8 text-center">
-              <p className="text-muted-foreground">大纲树 — 弧段-章节两级规划</p>
-            </div>
+            <OutlineEditor projectId={projectId} />
           </TabsContent>
 
           <TabsContent value="style" className="mt-4">
-            <div className="rounded-lg border border-dashed border-border p-8 text-center">
-              <p className="text-muted-foreground">风格配置 — 内置预设 + 自定义风格</p>
-            </div>
+            <StyleEditor projectId={projectId} />
           </TabsContent>
 
           <TabsContent value="agents" className="mt-4">

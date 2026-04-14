@@ -79,7 +79,9 @@ describe("IssueList", () => {
 
     // Click "接受" button (first occurrence)
     const acceptButtons = screen.getAllByText("接受");
-    fireEvent.click(acceptButtons[0]);
+    const firstButton = acceptButtons[0];
+    if (!firstButton) throw new Error("No accept button found");
+    fireEvent.click(firstButton);
     expect(calledWith).toEqual({ id: "issue-1", verdict: "accept" });
   });
 
