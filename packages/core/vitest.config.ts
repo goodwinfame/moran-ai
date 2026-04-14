@@ -15,8 +15,6 @@ export default defineConfig({
         "src/types/**",
         "src/logger/**",
         "src/index.ts",
-        "src/bridge/**",
-        "src/orchestrator/**",
       ],
       thresholds: {
         statements: 80,

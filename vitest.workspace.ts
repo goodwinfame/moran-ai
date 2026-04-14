@@ -33,6 +33,7 @@ export default defineWorkspace([
       root: "./packages/server",
       include: ["src/**/__tests__/**/*.test.ts"],
       environment: "node",
+      setupFiles: ["./test/setup.ts"],
     },
   },
   // @moran/web — Component/hook unit tests

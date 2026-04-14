@@ -17,6 +17,7 @@
   "dependencies": {
     "@moran/core": "workspace:*",
     "@moran/agents": "workspace:*",
+    "@opencode-ai/sdk": "^1.4.0",
     "hono": "^4.7.0",
     "@hono/node-server": "^1.14.0",
     "zod": "^3.24.0"
