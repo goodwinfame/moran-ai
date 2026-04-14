@@ -1,6 +1,9 @@
+# docker-compose.yml — Default development compose (full stack)
+# Usage: docker compose up -d
 services:
   postgres:
     image: postgres:17-alpine
+    restart: unless-stopped
     environment:
       POSTGRES_DB: moran
       POSTGRES_USER: moran
@@ -19,6 +22,7 @@ services:
     build:
       context: .
       dockerfile: packages/server/Dockerfile
+    restart: unless-stopped
     depends_on:
       postgres:
         condition: service_healthy
@@ -30,17 +34,31 @@ services:
       GOOGLE_AI_API_KEY: ${GOOGLE_AI_API_KEY:-}
     ports:
       - "3200:3200"
+    healthcheck:
+      test: ["CMD-SHELL", "wget --no-verbose --tries=1 --spider http://localhost:3200/ || exit 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 3
+      start_period: 10s
 
   moran-web:
     build:
       context: .
       dockerfile: packages/web/Dockerfile
+    restart: unless-stopped
     depends_on:
-      - moran-server
+      moran-server:
+        condition: service_healthy
     environment:
       NEXT_PUBLIC_API_URL: http://localhost:3200
     ports:
       - "3000:3000"
+    healthcheck:
+      test: ["CMD-SHELL", "wget --no-verbose --tries=1 --spider http://localhost:3000/ || exit 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 3
+      start_period: 15s
 
 volumes:
   pgdata:

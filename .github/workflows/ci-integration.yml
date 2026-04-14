@@ -9,6 +9,7 @@ on:
 jobs:
   integration:
     runs-on: ubuntu-latest
+    timeout-minutes: 20
     services:
       postgres:
         image: postgres:17-alpine
@@ -38,6 +39,9 @@ jobs:
 
       - run: pnpm install --frozen-lockfile
 
+      - name: Build core (required for server)
+        run: pnpm --filter @moran/core run build
+
       - name: Run DB migrations
         run: pnpm db:migrate
         env:
@@ -48,4 +52,5 @@ jobs:
         env:
           DATABASE_URL: postgresql://moran:test_password@localhost:5432/moran_test
 
-      - run: pnpm run build
+      - name: Build all packages
+        run: pnpm run build

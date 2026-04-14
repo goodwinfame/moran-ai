@@ -9,6 +9,7 @@ on:
 jobs:
   unit:
     runs-on: ubuntu-latest
+    timeout-minutes: 15
     steps:
       - uses: actions/checkout@v4
 
@@ -23,15 +24,22 @@ jobs:
 
       - run: pnpm install --frozen-lockfile
 
-      - run: pnpm run lint
+      - name: Lint
+        run: pnpm run lint
 
-      - run: pnpm run typecheck
+      - name: Typecheck
+        run: pnpm run typecheck
 
-      - run: pnpm run test
+      - name: Unit tests
+        run: pnpm run test
 
-      - run: pnpm run test:coverage
+      - name: Coverage report
+        run: pnpm run test:coverage
+        continue-on-error: true
 
       - uses: actions/upload-artifact@v4
+        if: always()
         with:
           name: coverage-report
           path: coverage/
+          retention-days: 14

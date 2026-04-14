@@ -1,0 +1,46 @@
+# Dependencies
+node_modules/
+.pnpm-store/
+
+# Build outputs
+packages/core/dist/
+packages/server/dist/
+packages/web/.next/
+packages/web/out/
+
+# Development
+.env
+.env.local
+.env.*.local
+*.log
+coverage/
+.nyc_output/
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# Git
+.git/
+.gitignore
+
+# Docker (prevent recursive copy)
+docker-compose*.yml
+Dockerfile
+
+# Tests & docs
+**/__tests__/
+**/*.test.ts
+**/*.test.tsx
+**/*.spec.ts
+packages/web/playwright-report/
+packages/web/test-results/
+
+# Design docs (in parent dir, but just in case)
+docs/
+
+# OS files
+.DS_Store
+Thumbs.db

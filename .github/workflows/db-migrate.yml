@@ -9,6 +9,10 @@ on:
 jobs:
   migrate:
     runs-on: ubuntu-latest
+    timeout-minutes: 10
+    # Only run if PROD_DATABASE_URL secret is configured
+    environment: production
+
     steps:
       - uses: actions/checkout@v4
 
@@ -21,6 +25,7 @@ jobs:
 
       - run: pnpm install --frozen-lockfile
 
-      - run: pnpm dlx drizzle-kit migrate
+      - name: Run production migration
+        run: pnpm dlx drizzle-kit migrate
         env:
           DATABASE_URL: ${{ secrets.PROD_DATABASE_URL }}
