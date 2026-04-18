@@ -1,8 +1,7 @@
 "use client";
 
 import { useState, useCallback } from "react";
-
-const API_BASE = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:3200";
+import { API_BASE } from "@/lib/api";
 
 /** 支持的导出格式 */
 export interface ExportFormatInfo {

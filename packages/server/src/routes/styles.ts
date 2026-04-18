@@ -10,26 +10,27 @@
  */
 
 import { Hono } from "hono";
+import { eq } from "drizzle-orm";
+import type { SessionProjectBridge } from "@moran/core";
+import { getDb } from "@moran/core/db";
+import { styleConfigs } from "@moran/core/db/schema";
 import { createLogger } from "@moran/core/logger";
+import { StyleManager } from "@moran/core";
 
 const log = createLogger("styles-routes");
 
-/**
- * 风格列表项 (简要)
- */
-export interface StyleListItem {
+type StyleSource = "builtin" | "user" | "fork";
+
+interface StyleListItem {
   styleId: string;
   displayName: string;
   genre: string;
   description: string;
-  source: "builtin" | "user" | "fork";
+  source: StyleSource;
   forkedFrom: string | null;
 }
 
-/**
- * 风格详情 (完整)
- */
-export interface StyleDetail extends StyleListItem {
+interface StyleDetail extends StyleListItem {
   version: number;
   modules: string[];
   reviewerFocus: string[];
@@ -152,34 +153,87 @@ const builtinStyles: StyleDetail[] = [
   },
 ];
 
-// 用户自定义风格 — 内存存储 (key: styleId)
-const userStyleStore = new Map<string, StyleDetail>();
+/** Map a DB row to StyleDetail response shape */
+function rowToDetail(row: typeof styleConfigs.$inferSelect): StyleDetail {
+  return {
+    styleId: row.styleId,
+    displayName: row.displayName,
+    genre: row.genre ?? "通用",
+    description: row.description ?? "",
+    source: row.source as StyleSource,
+    forkedFrom: row.forkedFrom ?? null,
+    version: row.version ?? 1,
+    modules: (row.modules as string[]) ?? [],
+    reviewerFocus: (row.reviewerFocus as string[]) ?? [],
+    contextWeights: (row.contextWeights as Record<string, number>) ?? {},
+    tone: (row.tone as Record<string, number>) ?? {},
+    forbidden: (row.forbidden as { words?: string[]; patterns?: string[] }) ?? {},
+    encouraged: (row.encouraged as string[]) ?? [],
+    proseGuide: row.proseGuide ?? "",
+    examples: row.examples ?? "",
+    createdAt: row.createdAt?.toISOString() ?? new Date().toISOString(),
+    updatedAt: row.updatedAt?.toISOString() ?? new Date().toISOString(),
+  };
+}
 
-export function createStylesRoute() {
+export function createStylesRoute(_bridge: SessionProjectBridge, styleManager: StyleManager) {
   const route = new Hono();
 
   /** GET / — 列出所有可用风格 */
-  route.get("/", (c) => {
-    const all: StyleListItem[] = [
-      ...builtinStyles.map((s) => ({
-        styleId: s.styleId,
-        displayName: s.displayName,
-        genre: s.genre,
-        description: s.description,
-        source: s.source,
-        forkedFrom: s.forkedFrom,
-      })),
-      ...Array.from(userStyleStore.values()).map((s) => ({
-        styleId: s.styleId,
-        displayName: s.displayName,
-        genre: s.genre,
-        description: s.description,
-        source: s.source,
-        forkedFrom: s.forkedFrom,
-      })),
-    ];
+  route.get("/", async (c) => {
+    const db = getDb();
+    const userRows = await db
+      .select()
+      .from(styleConfigs)
+      .where(eq(styleConfigs.isActive, true));
 
+    const builtinItems: StyleListItem[] = builtinStyles.map((s) => ({
+      styleId: s.styleId,
+      displayName: s.displayName,
+      genre: s.genre,
+      description: s.description,
+      source: s.source,
+      forkedFrom: s.forkedFrom,
+    }));
+
+    const userItems: StyleListItem[] = userRows.map((row) => ({
+      styleId: row.styleId,
+      displayName: row.displayName,
+      genre: row.genre ?? "通用",
+      description: row.description ?? "",
+      source: row.source as StyleSource,
+      forkedFrom: row.forkedFrom ?? null,
+    }));
+
+    const all = [...builtinItems, ...userItems];
     return c.json({ styles: all, total: all.length });
+  });
+
+  /** POST /align — 风格推荐 */
+  route.post("/align", async (c) => {
+    try {
+      const body = await c.req.json<{
+        genre?: string;
+        tone?: string;
+        requirements?: string;
+      }>();
+
+      const styles = await styleManager.listStyles();
+      const matched = body.genre
+        ? styles.filter(
+            (style) =>
+              style.genre.toLowerCase() === body.genre!.toLowerCase() || style.genre === "通用",
+          )
+        : styles;
+
+      return c.json({
+        reply: `推荐了 ${matched.length} 个适合的风格配置`,
+        data: { recommended: matched, total: matched.length },
+      });
+    } catch (error) {
+      log.error({ error }, "Failed to align styles");
+      return c.json({ error: "Failed to align styles" }, 500);
+    }
   });
 
   /** POST / — 创建自定义风格 */
@@ -203,91 +257,114 @@ export function createStylesRoute() {
     }
 
     const styleId = `user-${crypto.randomUUID().slice(0, 8)}`;
-    const now = new Date().toISOString();
-    const style: StyleDetail = {
-      styleId,
-      displayName: body.displayName,
-      genre: body.genre ?? "通用",
-      description: body.description ?? "",
-      source: "user",
-      forkedFrom: null,
-      version: 1,
-      modules: body.modules ?? ["anti-ai", "prose-craft"],
-      reviewerFocus: body.reviewerFocus ?? [],
-      contextWeights: body.contextWeights ?? { world: 1.0, character: 1.0, plot: 1.0 },
-      tone: body.tone ?? { humor: 0.3, tension: 0.5, romance: 0.3, dark: 0.2 },
-      forbidden: body.forbidden ?? { words: [], patterns: [] },
-      encouraged: body.encouraged ?? [],
-      proseGuide: body.proseGuide ?? "",
-      examples: body.examples ?? "",
-      createdAt: now,
-      updatedAt: now,
-    };
+    const db = getDb();
 
-    userStyleStore.set(styleId, style);
+    const [row] = await db
+      .insert(styleConfigs)
+      .values({
+        styleId,
+        displayName: body.displayName,
+        genre: body.genre ?? "通用",
+        description: body.description ?? "",
+        source: "user",
+        forkedFrom: null,
+        version: 1,
+        modules: body.modules ?? ["anti-ai", "prose-craft"],
+        reviewerFocus: body.reviewerFocus ?? [],
+        contextWeights: body.contextWeights ?? { world: 1.0, character: 1.0, plot: 1.0 },
+        tone: body.tone ?? { humor: 0.3, tension: 0.5, romance: 0.3, dark: 0.2 },
+        forbidden: body.forbidden ?? { words: [], patterns: [] },
+        encouraged: body.encouraged ?? [],
+        proseGuide: body.proseGuide ?? "",
+        examples: body.examples ?? "",
+      })
+      .returning();
+
     log.info({ styleId, displayName: body.displayName }, "User style created");
 
-    return c.json(style, 201);
+    if (!row) return c.json({ error: "Failed to create style" }, 500);
+    return c.json(rowToDetail(row), 201);
   });
 
   /** GET /:styleId — 获取风格详情 */
-  route.get("/:styleId", (c) => {
+  route.get("/:styleId", async (c) => {
     const styleId = c.req.param("styleId");
     const builtin = builtinStyles.find((s) => s.styleId === styleId);
     if (builtin) return c.json(builtin);
 
-    const userStyle = userStyleStore.get(styleId);
-    if (userStyle) return c.json(userStyle);
+    const db = getDb();
+    const [row] = await db
+      .select()
+      .from(styleConfigs)
+      .where(eq(styleConfigs.styleId, styleId));
 
-    return c.json({ error: "Style not found" }, 404);
+    if (!row) return c.json({ error: "Style not found" }, 404);
+
+    return c.json(rowToDetail(row));
   });
 
   /** PUT /:styleId — 更新自定义风格 */
   route.put("/:styleId", async (c) => {
     const styleId = c.req.param("styleId");
 
-    // Cannot edit builtin styles directly
     if (builtinStyles.some((s) => s.styleId === styleId)) {
-      return c.json(
-        { error: "Cannot edit builtin styles. Use fork instead." },
-        403,
-      );
+      return c.json({ error: "Cannot edit builtin styles. Use fork instead." }, 403);
     }
 
-    const existing = userStyleStore.get(styleId);
+    const db = getDb();
+    const [existing] = await db
+      .select()
+      .from(styleConfigs)
+      .where(eq(styleConfigs.styleId, styleId));
+
     if (!existing) return c.json({ error: "Style not found" }, 404);
 
     const body = await c.req.json<Partial<StyleDetail>>();
-    const updated: StyleDetail = {
-      ...existing,
-      ...body,
-      styleId: existing.styleId,
-      source: existing.source,
-      forkedFrom: existing.forkedFrom,
-      createdAt: existing.createdAt,
-      updatedAt: new Date().toISOString(),
-      version: existing.version + 1,
-    };
 
-    userStyleStore.set(styleId, updated);
+    const [updated] = await db
+      .update(styleConfigs)
+      .set({
+        ...(body.displayName !== undefined && { displayName: body.displayName }),
+        ...(body.genre !== undefined && { genre: body.genre }),
+        ...(body.description !== undefined && { description: body.description }),
+        ...(body.modules !== undefined && { modules: body.modules }),
+        ...(body.reviewerFocus !== undefined && { reviewerFocus: body.reviewerFocus }),
+        ...(body.contextWeights !== undefined && { contextWeights: body.contextWeights }),
+        ...(body.tone !== undefined && { tone: body.tone }),
+        ...(body.forbidden !== undefined && { forbidden: body.forbidden }),
+        ...(body.encouraged !== undefined && { encouraged: body.encouraged }),
+        ...(body.proseGuide !== undefined && { proseGuide: body.proseGuide }),
+        ...(body.examples !== undefined && { examples: body.examples }),
+        version: existing.version !== null ? existing.version + 1 : 2,
+        updatedAt: new Date(),
+      })
+      .where(eq(styleConfigs.styleId, styleId))
+      .returning();
+
     log.info({ styleId }, "User style updated");
 
-    return c.json(updated);
+    if (!updated) return c.json({ error: "Failed to update style" }, 500);
+    return c.json(rowToDetail(updated));
   });
 
   /** DELETE /:styleId — 删除自定义风格 */
-  route.delete("/:styleId", (c) => {
+  route.delete("/:styleId", async (c) => {
     const styleId = c.req.param("styleId");
 
     if (builtinStyles.some((s) => s.styleId === styleId)) {
       return c.json({ error: "Cannot delete builtin styles" }, 403);
     }
 
-    if (!userStyleStore.has(styleId)) {
+    const db = getDb();
+    const result = await db
+      .delete(styleConfigs)
+      .where(eq(styleConfigs.styleId, styleId))
+      .returning({ styleId: styleConfigs.styleId });
+
+    if (result.length === 0) {
       return c.json({ error: "Style not found" }, 404);
     }
 
-    userStyleStore.delete(styleId);
     log.info({ styleId }, "User style deleted");
 
     return c.json({ deleted: true });
@@ -301,27 +378,36 @@ export function createStylesRoute() {
       return c.json({ error: "Source style not found (can only fork builtin)" }, 404);
     }
 
-    const body = await c.req.json<{
-      displayName?: string;
-    }>().catch(() => ({}));
+    const body = await c.req.json<{ displayName?: string }>().catch(() => ({}));
 
     const forkId = `fork-${sourceId}-${crypto.randomUUID().slice(0, 8)}`;
-    const now = new Date().toISOString();
-    const forked: StyleDetail = {
-      ...source,
-      styleId: forkId,
-      displayName: (body as { displayName?: string }).displayName ?? `${source.displayName} (自定义)`,
-      source: "fork",
-      forkedFrom: sourceId,
-      version: 1,
-      createdAt: now,
-      updatedAt: now,
-    };
+    const db = getDb();
 
-    userStyleStore.set(forkId, forked);
+    const [row] = await db
+      .insert(styleConfigs)
+      .values({
+        styleId: forkId,
+        displayName: (body as { displayName?: string }).displayName ?? `${source.displayName} (自定义)`,
+        genre: source.genre,
+        description: source.description,
+        source: "fork",
+        forkedFrom: sourceId,
+        version: 1,
+        modules: source.modules,
+        reviewerFocus: source.reviewerFocus,
+        contextWeights: source.contextWeights,
+        tone: source.tone,
+        forbidden: source.forbidden,
+        encouraged: source.encouraged,
+        proseGuide: source.proseGuide,
+        examples: source.examples,
+      })
+      .returning();
+
     log.info({ forkId, sourceId }, "Style forked");
 
-    return c.json(forked, 201);
+    if (!row) return c.json({ error: "Failed to fork style" }, 500);
+    return c.json(rowToDetail(row), 201);
   });
 
   return route;

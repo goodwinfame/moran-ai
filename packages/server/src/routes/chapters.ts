@@ -7,59 +7,52 @@
  */
 
 import { Hono } from "hono";
+import { eq, and, asc } from "drizzle-orm";
+import { getDb } from "@moran/core/db";
+import { chapters } from "@moran/core/db/schema";
 import { createLogger } from "@moran/core/logger";
 
 const log = createLogger("chapters-routes");
 
-/**
- * 章节数据 — 内存存储
- */
-interface ChapterData {
-  id: string;
-  projectId: string;
-  chapterNumber: number;
-  title: string | null;
-  content: string | null;
-  wordCount: number;
-  writerStyle: string | null;
-  status: string;
-  currentVersion: number;
-  createdAt: string;
-  updatedAt: string;
-}
+type ChapterStatus = "draft" | "reviewing" | "archived" | "dirty";
 
-// 内存存储 — key: `${projectId}:${chapterNumber}`
-const chapterStore = new Map<string, ChapterData>();
-
-function chapterKey(projectId: string, num: number) {
-  return `${projectId}:${num}`;
+function isValidChapterStatus(s: string): s is ChapterStatus {
+  return s === "draft" || s === "reviewing" || s === "archived" || s === "dirty";
 }
 
 export function createChaptersRoute() {
   const route = new Hono();
 
   /** GET / — 列出章节（摘要模式） */
-  route.get("/", (c) => {
+  route.get("/", async (c) => {
     const projectId = c.req.param("id");
     if (!projectId) {
       return c.json({ error: "Missing project ID" }, 400);
     }
 
-    const chapters: Omit<ChapterData, "content">[] = [];
-    for (const ch of chapterStore.values()) {
-      if (ch.projectId === projectId) {
-        const { content: _, ...summary } = ch;
-        chapters.push(summary);
-      }
-    }
+    const db = getDb();
+    const rows = await db
+      .select({
+        id: chapters.id,
+        projectId: chapters.projectId,
+        chapterNumber: chapters.chapterNumber,
+        title: chapters.title,
+        wordCount: chapters.wordCount,
+        writerStyle: chapters.writerStyle,
+        status: chapters.status,
+        currentVersion: chapters.currentVersion,
+        createdAt: chapters.createdAt,
+        updatedAt: chapters.updatedAt,
+      })
+      .from(chapters)
+      .where(eq(chapters.projectId, projectId))
+      .orderBy(asc(chapters.chapterNumber));
 
-    chapters.sort((a, b) => a.chapterNumber - b.chapterNumber);
-
-    return c.json({ chapters, total: chapters.length });
+    return c.json({ chapters: rows, total: rows.length });
   });
 
   /** GET /:num — 获取章节详情（含正文） */
-  route.get("/:num", (c) => {
+  route.get("/:num", async (c) => {
     const projectId = c.req.param("id");
     const num = parseInt(c.req.param("num"), 10);
 
@@ -67,7 +60,24 @@ export function createChaptersRoute() {
       return c.json({ error: "Invalid parameters" }, 400);
     }
 
-    const chapter = chapterStore.get(chapterKey(projectId, num));
+    const db = getDb();
+    const [chapter] = await db
+      .select({
+        id: chapters.id,
+        projectId: chapters.projectId,
+        chapterNumber: chapters.chapterNumber,
+        title: chapters.title,
+        content: chapters.content,
+        wordCount: chapters.wordCount,
+        writerStyle: chapters.writerStyle,
+        status: chapters.status,
+        currentVersion: chapters.currentVersion,
+        createdAt: chapters.createdAt,
+        updatedAt: chapters.updatedAt,
+      })
+      .from(chapters)
+      .where(and(eq(chapters.projectId, projectId), eq(chapters.chapterNumber, num)));
+
     if (!chapter) {
       return c.json({ error: "Chapter not found" }, 404);
     }
@@ -84,43 +94,98 @@ export function createChaptersRoute() {
       return c.json({ error: "Invalid parameters" }, 400);
     }
 
-    const key = chapterKey(projectId, num);
-    const existing = chapterStore.get(key);
-    const body = await c.req.json<Partial<ChapterData>>();
-    const now = new Date().toISOString();
+    const db = getDb();
+    const [existing] = await db
+      .select({
+        id: chapters.id,
+        projectId: chapters.projectId,
+        chapterNumber: chapters.chapterNumber,
+        title: chapters.title,
+        content: chapters.content,
+        wordCount: chapters.wordCount,
+        writerStyle: chapters.writerStyle,
+        status: chapters.status,
+        currentVersion: chapters.currentVersion,
+        createdAt: chapters.createdAt,
+        updatedAt: chapters.updatedAt,
+      })
+      .from(chapters)
+      .where(and(eq(chapters.projectId, projectId), eq(chapters.chapterNumber, num)));
+
+    const body = await c.req.json<{
+      title?: string | null;
+      content?: string | null;
+      wordCount?: number;
+      writerStyle?: string | null;
+      status?: string;
+      currentVersion?: number;
+    }>();
 
     if (existing) {
-      // Update
-      const updated: ChapterData = {
-        ...existing,
-        ...body,
-        id: existing.id,
-        projectId,
-        chapterNumber: num,
-        createdAt: existing.createdAt,
-        updatedAt: now,
-      };
-      chapterStore.set(key, updated);
+      const [updated] = await db
+        .update(chapters)
+        .set({
+          title: body.title !== undefined ? body.title : existing.title,
+          content: body.content !== undefined ? body.content : existing.content,
+          wordCount: body.wordCount !== undefined ? body.wordCount : existing.wordCount,
+          writerStyle: body.writerStyle !== undefined ? body.writerStyle : existing.writerStyle,
+          status: body.status !== undefined
+            ? (isValidChapterStatus(body.status) ? body.status : existing.status)
+            : existing.status,
+          currentVersion:
+            body.currentVersion !== undefined ? body.currentVersion : existing.currentVersion,
+          updatedAt: new Date(),
+        })
+        .where(and(eq(chapters.projectId, projectId), eq(chapters.chapterNumber, num)))
+        .returning({
+          id: chapters.id,
+          projectId: chapters.projectId,
+          chapterNumber: chapters.chapterNumber,
+          title: chapters.title,
+          content: chapters.content,
+          wordCount: chapters.wordCount,
+          writerStyle: chapters.writerStyle,
+          status: chapters.status,
+          currentVersion: chapters.currentVersion,
+          createdAt: chapters.createdAt,
+          updatedAt: chapters.updatedAt,
+        });
+
+      if (!updated) return c.json({ error: "Failed to update chapter" }, 500);
       return c.json(updated);
-    } else {
-      // Create
-      const chapter: ChapterData = {
-        id: crypto.randomUUID(),
+    }
+
+    const [created] = await db
+      .insert(chapters)
+      .values({
         projectId,
         chapterNumber: num,
-        title: (body.title as string) ?? null,
-        content: (body.content as string) ?? null,
-        wordCount: (body.wordCount as number) ?? 0,
-        writerStyle: (body.writerStyle as string) ?? null,
-        status: (body.status as string) ?? "draft",
-        currentVersion: 1,
-        createdAt: now,
-        updatedAt: now,
-      };
-      chapterStore.set(key, chapter);
-      log.info({ projectId, chapterNumber: num }, "Chapter created");
-      return c.json(chapter, 201);
-    }
+        title: body.title ?? null,
+        content: body.content ?? null,
+        wordCount: body.wordCount ?? 0,
+        writerStyle: body.writerStyle ?? null,
+        status: (body.status && isValidChapterStatus(body.status)) ? body.status : "draft",
+        currentVersion: body.currentVersion ?? 1,
+        createdAt: new Date(),
+        updatedAt: new Date(),
+      })
+      .returning({
+        id: chapters.id,
+        projectId: chapters.projectId,
+        chapterNumber: chapters.chapterNumber,
+        title: chapters.title,
+        content: chapters.content,
+        wordCount: chapters.wordCount,
+        writerStyle: chapters.writerStyle,
+        status: chapters.status,
+        currentVersion: chapters.currentVersion,
+        createdAt: chapters.createdAt,
+        updatedAt: chapters.updatedAt,
+      });
+
+    log.info({ projectId, chapterNumber: num }, "Chapter created");
+    if (!created) return c.json({ error: "Failed to create chapter" }, 500);
+    return c.json(created, 201);
   });
 
   return route;

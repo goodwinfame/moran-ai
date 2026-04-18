@@ -2,8 +2,7 @@
 
 import { useEffect, useCallback, useRef, useState } from "react";
 import { useWritingStore } from "@/stores/writing-store";
-
-const API_BASE = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:3200";
+import { API_BASE } from "@/lib/api";
 
 /** 重连配置 */
 const RECONNECT_CONFIG = {

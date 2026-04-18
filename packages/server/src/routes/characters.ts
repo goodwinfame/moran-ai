@@ -10,210 +10,90 @@
  */
 
 import { Hono } from "hono";
+import { eq, inArray } from "drizzle-orm";
+import { JiangxinEngine } from "@moran/core";
+import { getDb } from "@moran/core/db";
+import { characters, characterDna, characterRelationships } from "@moran/core/db/schema";
 import { createLogger } from "@moran/core/logger";
+import type { CharacterDesignInput, SessionProjectBridge } from "@moran/core";
 
 const log = createLogger("characters-routes");
 
-/**
- * 角色数据 — 对应 §6 characters + character_dna 表
- */
-export interface CharacterData {
-  id: string;
-  projectId: string;
-  name: string;
-  aliases: string[];
-  role: "protagonist" | "antagonist" | "supporting" | "minor";
-  description: string;
-  personality: string;
-  background: string;
-  goals: string[];
-  firstAppearance: number | null;
-  arc: string | null;
-  profileContent: string | null;
-  /** DNA 四维心理模型 */
-  dna: CharacterDNA | null;
-  createdAt: string;
-  updatedAt: string;
-}
+const roleOrder: Record<string, number> = {
+  protagonist: 0,
+  antagonist: 1,
+  supporting: 2,
+  minor: 3,
+};
 
-export interface CharacterDNA {
-  ghost: string;
-  wound: string;
-  lie: string;
-  want: string;
-  need: string;
-  arcType: "positive" | "negative" | "flat" | "corruption";
-  defaultMode: string;
-  stressResponse: string;
-  tell: string;
-}
-
-/**
- * 角色关系
- */
-export interface RelationshipData {
-  id: string;
-  sourceId: string;
-  targetId: string;
-  type: string;
-  description: string;
-}
-
-// 内存存储
-const characterStore = new Map<string, CharacterData>();
-const relationshipStore = new Map<string, RelationshipData>();
-
-function seedDemoCharacters(projectId: string): void {
-  const chars: Array<Omit<CharacterData, "id" | "projectId" | "createdAt" | "updatedAt">> = [
-    {
-      name: "沈墨尘",
-      aliases: ["墨尘", "废物大少"],
-      role: "protagonist",
-      description: "沈家嫡子，幼时被测出杂灵根，沦为家族笑柄。性格外热内冷，善于隐忍。",
-      personality: "外热内冷，善于隐忍。看似随和温吞，内心极度执着。在利益纷争中保持底线，但不迂腐。",
-      background: "沈家曾为中州一品家族，父亲在一次秘境探索中失踪。母亲为护他周全，散尽修为封印了他的真正灵根。",
-      goals: ["找到失踪的父亲", "解开灵根封印的秘密", "让沈家重回巅峰"],
-      firstAppearance: 1,
-      arc: "从被人看不起的废物少爷成长为撼动修仙界格局的强者",
-      profileContent: null,
-      dna: {
-        ghost: "目睹母亲散尽修为倒在血泊中",
-        wound: "对自身无力保护至亲的深层恐惧",
-        lie: "只有变得足够强大，才能保护身边的人",
-        want: "找到父亲，恢复家族荣光",
-        need: "接受失去是人生的一部分，学会放手",
-        arcType: "positive",
-        defaultMode: "温和谦逊，不引人注目",
-        stressResponse: "沉默寡言，独自承受",
-        tell: "紧张时无意识地摩挲左手腕上的玉镯——母亲留下的遗物",
-      },
-    },
-    {
-      name: "凌霜",
-      aliases: ["霜儿", "冰仙子"],
-      role: "supporting",
-      description: "北冥冰宫嫡传弟子，天赋异禀的冰灵根修士。外表清冷，实则重情重义。",
-      personality: "外冷内热。对陌生人冷若冰霜，对认可的人温柔体贴。做事果断利落，不拖泥带水。",
-      background: "自幼被冰宫收养，从未见过父母。在严苛的修炼环境中成长，养成了独立坚强的性格。",
-      goals: ["突破化神期", "找到自己的身世之谜"],
-      firstAppearance: 5,
-      arc: "从封闭自我到敞开心扉",
-      profileContent: null,
-      dna: {
-        ghost: "幼时在暴风雪中被遗弃的模糊记忆",
-        wound: "深层的被抛弃感",
-        lie: "不依赖任何人就不会被抛弃",
-        want: "成为冰宫最强弟子证明自己的价值",
-        need: "学会信任他人，接受被爱",
-        arcType: "positive",
-        defaultMode: "冷淡疏离，一切公事公办",
-        stressResponse: "更加封闭自我，拒人千里之外",
-        tell: "不自觉地搓揉手指——幼时冻伤留下的习惯",
-      },
-    },
-    {
-      name: "陆九渊",
-      aliases: ["九渊", "黑袍"],
-      role: "antagonist",
-      description: "天一宗大长老，表面道貌岸然，实则野心勃勃。暗中修炼禁术，谋划颠覆宗门秩序。",
-      personality: "城府极深，善于伪装。对外和蔼可亲，对内铁血手腕。极度自负，认为自己才是引领修仙界的人。",
-      background: "出身散修家庭，凭借过人天赋和手段一步步爬到天一宗大长老之位。曾被宗门世家弟子羞辱，自此对所有世家怀恨在心。",
-      goals: ["掌控天一宗", "建立以实力为唯一标准的新秩序"],
-      firstAppearance: 8,
-      arc: "从被压迫者变成压迫者，最终被自己的执念吞噬",
-      profileContent: null,
-      dna: {
-        ghost: "年轻时被世家弟子当众羞辱踩踏",
-        wound: "对卑微出身的深层自卑",
-        lie: "只有权力才能获得尊严",
-        want: "掌控一切，再也不被人看不起",
-        need: "放下仇恨，认识到尊严来自内心而非权力",
-        arcType: "negative",
-        defaultMode: "温文尔雅，长者风范",
-        stressResponse: "暴怒，暴露出真实的偏执本性",
-        tell: "微笑时右手会不自觉地握拳——压抑着内心的狂暴",
-      },
-    },
-    {
-      name: "赵小虎",
-      aliases: ["小虎", "虎哥"],
-      role: "supporting",
-      description: "沈墨尘的发小，出身凡人猎户家庭。意外觉醒灵根后与沈墨尘一同拜入宗门。",
-      personality: "直率豪爽，重义气。有点莽但关键时刻靠谱。",
-      background: "山村猎户之子，十二岁时在山中打猎意外触发灵根觉醒。",
-      goals: ["保护好兄弟", "让家人过上好日子"],
-      firstAppearance: 1,
-      arc: "从鲁莽少年成长为可靠的伙伴",
-      profileContent: null,
-      dna: null,
-    },
-  ];
-
-  const rels: Array<Omit<RelationshipData, "id">> = [];
-  const charIds: string[] = [];
-
-  const now = new Date().toISOString();
-  for (let i = 0; i < chars.length; i++) {
-    const ch = chars[i];
-    if (!ch) continue;
-    const id = `${projectId}-char-${i + 1}`;
-    charIds.push(id);
-    characterStore.set(id, {
-      ...ch,
-      id,
-      projectId,
-      createdAt: now,
-      updatedAt: now,
-    });
-  }
-
-  // Create relationships
-  const id0 = charIds[0];
-  const id1 = charIds[1];
-  const id2 = charIds[2];
-  const id3 = charIds[3];
-  if (id0 && id1) {
-    rels.push({ sourceId: id0, targetId: id1, type: "知己/恋人", description: "彼此欣赏，逐渐发展为恋人" });
-  }
-  if (id0 && id3) {
-    rels.push({ sourceId: id0, targetId: id3, type: "发小/兄弟", description: "从小一起长大的兄弟" });
-  }
-  if (id0 && id2) {
-    rels.push({ sourceId: id0, targetId: id2, type: "敌对", description: "陆九渊暗中针对沈家" });
-  }
-  if (id1 && id2) {
-    rels.push({ sourceId: id1, targetId: id2, type: "师叔侄", description: "表面的宗门长辈关系" });
-  }
-
-  for (let i = 0; i < rels.length; i++) {
-    const r = rels[i];
-    if (!r) continue;
-    const relId = `${projectId}-rel-${i + 1}`;
-    relationshipStore.set(relId, { ...r, id: relId });
-  }
-}
-
-export function createCharactersRoute() {
+export function createCharactersRoute(bridge: SessionProjectBridge, jiangxinEngine: JiangxinEngine) {
   const route = new Hono();
 
   /** GET / — 列出所有角色 */
-  route.get("/", (c) => {
+  route.get("/", async (c) => {
     const projectId = c.req.param("id");
     if (!projectId) return c.json({ error: "Missing project ID" }, 400);
 
-    const hasData = Array.from(characterStore.values()).some(
-      (ch) => ch.projectId === projectId,
-    );
-    if (!hasData) seedDemoCharacters(projectId);
+    const db = getDb();
 
-    const characters = Array.from(characterStore.values())
-      .filter((ch) => ch.projectId === projectId)
-      .sort((a, b) => {
-        const roleOrder = { protagonist: 0, antagonist: 1, supporting: 2, minor: 3 };
-        return roleOrder[a.role] - roleOrder[b.role];
-      });
+    const rows = await db
+      .select()
+      .from(characters)
+      .where(eq(characters.projectId, projectId));
 
-    return c.json({ characters, total: characters.length });
+    const charIds = rows.map((r) => r.id);
+    const dnaRows =
+      charIds.length > 0
+        ? await db
+            .select()
+            .from(characterDna)
+            .where(inArray(characterDna.characterId, charIds))
+        : [];
+
+    const dnaByCharId = new Map(dnaRows.map((d) => [d.characterId, d]));
+
+    const result = rows
+      .map((ch) => {
+        const dna = dnaByCharId.get(ch.id) ?? null;
+        return { ...ch, dna };
+      })
+      .sort((a, b) => (roleOrder[a.role ?? "minor"] ?? 3) - (roleOrder[b.role ?? "minor"] ?? 3));
+
+    return c.json({ characters: result, total: result.length });
+  });
+
+  /** POST /align — 角色设计对齐 */
+  route.post("/align", async (c) => {
+    const projectId = c.req.param("id");
+    if (!projectId) return c.json({ error: "Missing project ID" }, 400);
+
+    try {
+      const body = await c.req.json<{
+        briefSummary: string;
+        worldOverview: string;
+        requirements?: string;
+        referenceKnowledge?: string[];
+      }>();
+
+      if (!body.briefSummary) return c.json({ error: "briefSummary is required" }, 400);
+      if (!body.worldOverview) return c.json({ error: "worldOverview is required" }, 400);
+
+      const input: CharacterDesignInput = {
+        projectId,
+        briefSummary: body.briefSummary,
+        worldOverview: body.worldOverview,
+        requirements: body.requirements,
+        referenceKnowledge: body.referenceKnowledge,
+      };
+
+      await bridge.ensureSession(projectId);
+      const result = await jiangxinEngine.designCharacters(input, bridge);
+
+      return c.json({ reply: `设计了 ${result.characters.length} 个角色`, data: result });
+    } catch (error) {
+      log.error({ error, projectId }, "Character alignment failed");
+      return c.json({ error: "Failed to align characters" }, 500);
+    }
   });
 
   /** POST / — 新增角色 */
@@ -223,55 +103,89 @@ export function createCharactersRoute() {
 
     const body = await c.req.json<{
       name: string;
-      role?: CharacterData["role"];
+      aliases?: string[];
+      role?: "protagonist" | "antagonist" | "supporting" | "minor";
       description?: string;
       personality?: string;
       background?: string;
       goals?: string[];
-      dna?: CharacterDNA | null;
+      firstAppearance?: number | null;
+      arc?: string | null;
+      profileContent?: string | null;
+      dna?: {
+        ghost?: string | null;
+        wound?: string | null;
+        lie?: string | null;
+        want?: string | null;
+        need?: string | null;
+        arcType?: "positive" | "negative" | "flat" | "corruption";
+        defaultMode?: string | null;
+        stressResponse?: string | null;
+        lieDefense?: string | null;
+        tell?: string | null;
+      } | null;
     }>();
 
     if (!body.name) return c.json({ error: "name is required" }, 400);
 
-    const id = crypto.randomUUID();
-    const now = new Date().toISOString();
-    const character: CharacterData = {
-      id,
-      projectId,
-      name: body.name,
-      aliases: [],
-      role: body.role ?? "minor",
-      description: body.description ?? "",
-      personality: body.personality ?? "",
-      background: body.background ?? "",
-      goals: body.goals ?? [],
-      firstAppearance: null,
-      arc: null,
-      profileContent: null,
-      dna: body.dna ?? null,
-      createdAt: now,
-      updatedAt: now,
-    };
+    const db = getDb();
 
-    characterStore.set(id, character);
-    log.info({ id, name: body.name }, "Character created");
+    const [character] = await db
+      .insert(characters)
+      .values({
+        projectId,
+        name: body.name,
+        aliases: body.aliases ?? [],
+        role: body.role ?? "minor",
+        description: body.description ?? null,
+        personality: body.personality ?? null,
+        background: body.background ?? null,
+        goals: body.goals ?? [],
+        firstAppearance: body.firstAppearance ?? null,
+        arc: body.arc ?? null,
+        profileContent: body.profileContent ?? null,
+      })
+      .returning();
 
-    return c.json(character, 201);
+    if (!character) return c.json({ error: "Failed to create character" }, 500);
+
+    let dna = null;
+    if (body.dna) {
+      const [dnaRow] = await db
+        .insert(characterDna)
+        .values({
+          characterId: character.id,
+          ghost: body.dna.ghost ?? null,
+          wound: body.dna.wound ?? null,
+          lie: body.dna.lie ?? null,
+          want: body.dna.want ?? null,
+          need: body.dna.need ?? null,
+          arcType: body.dna.arcType ?? null,
+          defaultMode: body.dna.defaultMode ?? null,
+          stressResponse: body.dna.stressResponse ?? null,
+          lieDefense: body.dna.lieDefense ?? null,
+          tell: body.dna.tell ?? null,
+        })
+        .returning();
+      dna = dnaRow ?? null;
+    }
+
+    log.info({ id: character.id, name: body.name }, "Character created");
+
+    return c.json({ ...character, dna }, 201);
   });
 
-  /** GET /graph — 关系图数据 (§5.3.7) */
-  route.get("/graph", (c) => {
+  /** GET /graph — 关系图数据 */
+  route.get("/graph", async (c) => {
     const projectId = c.req.param("id");
     if (!projectId) return c.json({ error: "Missing project ID" }, 400);
 
-    const hasData = Array.from(characterStore.values()).some(
-      (ch) => ch.projectId === projectId,
-    );
-    if (!hasData) seedDemoCharacters(projectId);
+    const db = getDb();
 
-    const characters = Array.from(characterStore.values()).filter(
-      (ch) => ch.projectId === projectId,
-    );
+    const [charRows, relRows] = await Promise.all([
+      db.select().from(characters).where(eq(characters.projectId, projectId)),
+      db.select().from(characterRelationships).where(eq(characterRelationships.projectId, projectId)),
+    ]);
 
     const roleColors: Record<string, string> = {
       protagonist: "#e53e3e",
@@ -280,72 +194,177 @@ export function createCharactersRoute() {
       minor: "#718096",
     };
 
-    const nodes = characters.map((ch) => ({
+    const nodes = charRows.map((ch) => ({
       id: ch.id,
       label: ch.name,
       role: ch.role,
-      color: roleColors[ch.role] ?? "#718096",
+      color: roleColors[ch.role ?? "minor"] ?? "#718096",
     }));
 
-    const edges = Array.from(relationshipStore.values())
-      .filter((r) => {
-        const src = characterStore.get(r.sourceId);
-        return src?.projectId === projectId;
-      })
-      .map((r) => ({
-        id: r.id,
-        source: r.sourceId,
-        target: r.targetId,
-        label: r.type,
-        description: r.description,
-      }));
+    const edges = relRows.map((r) => ({
+      id: r.id,
+      source: r.sourceId,
+      target: r.targetId,
+      label: r.type,
+      description: r.description,
+    }));
 
     return c.json({ nodes, edges });
   });
 
   /** GET /:charId — 获取角色详情 */
-  route.get("/:charId", (c) => {
+  route.get("/:charId", async (c) => {
     const charId = c.req.param("charId");
-    const character = characterStore.get(charId);
+    const db = getDb();
+
+    const [character] = await db
+      .select()
+      .from(characters)
+      .where(eq(characters.id, charId));
+
     if (!character) return c.json({ error: "Character not found" }, 404);
-    return c.json(character);
+
+    const [dna] = await db
+      .select()
+      .from(characterDna)
+      .where(eq(characterDna.characterId, charId));
+
+    return c.json({ ...character, dna: dna ?? null });
   });
 
   /** PUT /:charId — 更新角色 */
   route.put("/:charId", async (c) => {
     const charId = c.req.param("charId");
-    const existing = characterStore.get(charId);
+    const db = getDb();
+
+    const [existing] = await db
+      .select({ id: characters.id })
+      .from(characters)
+      .where(eq(characters.id, charId));
+
     if (!existing) return c.json({ error: "Character not found" }, 404);
 
-    const body = await c.req.json<Partial<CharacterData>>();
-    const updated: CharacterData = {
-      ...existing,
-      ...body,
-      id: existing.id,
-      projectId: existing.projectId,
-      createdAt: existing.createdAt,
-      updatedAt: new Date().toISOString(),
-    };
+    const body = await c.req.json<{
+      name?: string;
+      aliases?: string[];
+      role?: "protagonist" | "antagonist" | "supporting" | "minor";
+      description?: string | null;
+      personality?: string | null;
+      background?: string | null;
+      goals?: string[];
+      firstAppearance?: number | null;
+      arc?: string | null;
+      profileContent?: string | null;
+      dna?: {
+        ghost?: string | null;
+        wound?: string | null;
+        lie?: string | null;
+        want?: string | null;
+        need?: string | null;
+        arcType?: "positive" | "negative" | "flat" | "corruption";
+        defaultMode?: string | null;
+        stressResponse?: string | null;
+        lieDefense?: string | null;
+        tell?: string | null;
+      } | null;
+    }>();
 
-    characterStore.set(charId, updated);
+    const [updated] = await db
+      .update(characters)
+      .set({
+        ...(body.name !== undefined && { name: body.name }),
+        ...(body.aliases !== undefined && { aliases: body.aliases }),
+        ...(body.role !== undefined && { role: body.role }),
+        ...(body.description !== undefined && { description: body.description }),
+        ...(body.personality !== undefined && { personality: body.personality }),
+        ...(body.background !== undefined && { background: body.background }),
+        ...(body.goals !== undefined && { goals: body.goals }),
+        ...(body.firstAppearance !== undefined && { firstAppearance: body.firstAppearance }),
+        ...(body.arc !== undefined && { arc: body.arc }),
+        ...(body.profileContent !== undefined && { profileContent: body.profileContent }),
+        updatedAt: new Date(),
+      })
+      .where(eq(characters.id, charId))
+      .returning();
+
+    if (!updated) return c.json({ error: "Failed to update character" }, 500);
+
+    let dna = null;
+    if (body.dna !== undefined) {
+      if (body.dna === null) {
+        // Remove DNA if explicitly set to null
+        await db.delete(characterDna).where(eq(characterDna.characterId, charId));
+      } else {
+        // Upsert DNA
+        const [existingDna] = await db
+          .select({ id: characterDna.id })
+          .from(characterDna)
+          .where(eq(characterDna.characterId, charId));
+
+        if (existingDna) {
+          const [updatedDna] = await db
+            .update(characterDna)
+            .set({
+              ...(body.dna.ghost !== undefined && { ghost: body.dna.ghost }),
+              ...(body.dna.wound !== undefined && { wound: body.dna.wound }),
+              ...(body.dna.lie !== undefined && { lie: body.dna.lie }),
+              ...(body.dna.want !== undefined && { want: body.dna.want }),
+              ...(body.dna.need !== undefined && { need: body.dna.need }),
+              ...(body.dna.arcType !== undefined && { arcType: body.dna.arcType }),
+              ...(body.dna.defaultMode !== undefined && { defaultMode: body.dna.defaultMode }),
+              ...(body.dna.stressResponse !== undefined && { stressResponse: body.dna.stressResponse }),
+              ...(body.dna.lieDefense !== undefined && { lieDefense: body.dna.lieDefense }),
+              ...(body.dna.tell !== undefined && { tell: body.dna.tell }),
+            })
+            .where(eq(characterDna.characterId, charId))
+            .returning();
+          dna = updatedDna ?? null;
+        } else {
+          const [insertedDna] = await db
+            .insert(characterDna)
+            .values({
+              characterId: charId,
+              ghost: body.dna.ghost ?? null,
+              wound: body.dna.wound ?? null,
+              lie: body.dna.lie ?? null,
+              want: body.dna.want ?? null,
+              need: body.dna.need ?? null,
+              arcType: body.dna.arcType ?? null,
+              defaultMode: body.dna.defaultMode ?? null,
+              stressResponse: body.dna.stressResponse ?? null,
+              lieDefense: body.dna.lieDefense ?? null,
+              tell: body.dna.tell ?? null,
+            })
+            .returning();
+          dna = insertedDna ?? null;
+        }
+      }
+    } else {
+      // Fetch existing DNA to include in response
+      const [existingDna] = await db
+        .select()
+        .from(characterDna)
+        .where(eq(characterDna.characterId, charId));
+      dna = existingDna ?? null;
+    }
+
     log.info({ charId, name: updated.name }, "Character updated");
 
-    return c.json(updated);
+    return c.json({ ...updated, dna });
   });
 
   /** DELETE /:charId — 删除角色 */
-  route.delete("/:charId", (c) => {
+  route.delete("/:charId", async (c) => {
     const charId = c.req.param("charId");
-    if (!characterStore.has(charId)) {
-      return c.json({ error: "Character not found" }, 404);
-    }
+    const db = getDb();
 
-    characterStore.delete(charId);
-    // Also remove relationships involving this character
-    for (const [relId, rel] of relationshipStore) {
-      if (rel.sourceId === charId || rel.targetId === charId) {
-        relationshipStore.delete(relId);
-      }
+    const result = await db
+      .delete(characters)
+      .where(eq(characters.id, charId))
+      .returning({ id: characters.id });
+
+    if (result.length === 0) {
+      return c.json({ error: "Character not found" }, 404);
     }
 
     log.info({ charId }, "Character deleted");

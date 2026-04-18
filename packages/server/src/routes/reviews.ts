@@ -7,6 +7,11 @@
  */
 
 import { Hono } from "hono";
+import { eq, and, desc, sql } from "drizzle-orm";
+import { ReviewEngine } from "@moran/core";
+import type { FullReviewResult, ReviewInput, SessionProjectBridge, ReviewIssue as CoreReviewIssue } from "@moran/core";
+import { getDb } from "@moran/core/db";
+import { projectDocuments } from "@moran/core/db/schema";
 import { createLogger } from "@moran/core/logger";
 
 const log = createLogger("reviews-routes");
@@ -54,55 +59,34 @@ export interface ChapterReview {
   updatedAt: string;
 }
 
-// 内存存储 — key: `${projectId}:${chapterNumber}`
-const reviewStore = new Map<string, ChapterReview>();
-
-function reviewKey(projectId: string, chapterNum: number) {
-  return `${projectId}:${chapterNum}`;
+function mapSeverity(severity: CoreReviewIssue["severity"]): ReviewIssue["severity"] {
+  switch (severity) {
+    case "critical":
+      return "CRITICAL";
+    case "major":
+      return "MAJOR";
+    case "minor":
+      return "MINOR";
+    case "suggestion":
+      return "SUGGESTION";
+  }
 }
 
-/**
- * 生成 demo 审校数据 — 开发阶段使用
- */
-function seedDemoReview(projectId: string, chapterNum: number): ChapterReview {
+function mapEngineIssue(issue: CoreReviewIssue): ReviewIssue {
+  return {
+    id: crypto.randomUUID(),
+    severity: mapSeverity(issue.severity),
+    category: "general",
+    message: issue.issue,
+    evidence: issue.evidence,
+    suggestion: issue.suggestion,
+    verdict: "pending",
+  };
+}
+
+function buildReviewFromEngine(projectId: string, chapterNum: number, result: FullReviewResult): ChapterReview {
   const now = new Date().toISOString();
-  const issues: ReviewIssue[] = [
-    {
-      id: crypto.randomUUID(),
-      severity: "MAJOR",
-      category: "AI痕迹",
-      message: "「不禁感叹」属于AI高频用语，建议替换为更自然的表达",
-      evidence: "他不禁感叹道：\"这真是太美了。\"",
-      suggestion: "他长长呼出一口气——这地方，他妈的美得不像话。",
-      verdict: "pending",
-    },
-    {
-      id: crypto.randomUUID(),
-      severity: "CRITICAL",
-      category: "逻辑一致性",
-      message: "第3章已交代张三左臂受伤，此处描写其左手持剑，存在矛盾",
-      evidence: "张三左手猛地拔出长剑，寒光一闪",
-      suggestion: "张三右手猛地拔出长剑，寒光一闪（左臂仍用布带吊着）",
-      verdict: "pending",
-    },
-    {
-      id: crypto.randomUUID(),
-      severity: "MINOR",
-      category: "文风",
-      message: "连续两段使用了相同的句式结构（主语+动词+感叹），节奏略显单调",
-      evidence: "他看着远方。她望着天空。",
-      suggestion: "变换句式长短、加入动作或心理描写打破节奏",
-      verdict: "pending",
-    },
-    {
-      id: crypto.randomUUID(),
-      severity: "SUGGESTION",
-      category: "伏笔",
-      message: "此处可以为第二卷的主线冲突埋下伏笔",
-      suggestion: "在角色对话中暗示北方边境的异动",
-      verdict: "pending",
-    },
-  ];
+  const roundIssues = result.allIssues.map(mapEngineIssue);
 
   return {
     id: crypto.randomUUID(),
@@ -112,64 +96,179 @@ function seedDemoReview(projectId: string, chapterNum: number): ChapterReview {
     rounds: [
       {
         round: 1,
-        passed: false,
-        score: 72,
-        issues,
+        passed: result.passed,
+        score: result.score,
+        issues: roundIssues,
         timestamp: now,
       },
     ],
-    status: "failed",
-    latestScore: 72,
+    status: result.passed ? "passed" : "failed",
+    latestScore: result.score,
     createdAt: now,
     updatedAt: now,
   };
 }
 
-export function createReviewsRoute() {
+function buildPendingReview(projectId: string, chapterNum: number, existing?: ChapterReview): ChapterReview {
+  const now = new Date().toISOString();
+  const pendingRound: ReviewRound = {
+    round: existing ? existing.rounds.length + 1 : 1,
+    passed: false,
+    score: 0,
+    issues: [],
+    timestamp: now,
+  };
+
+  if (existing) {
+    return {
+      ...existing,
+      rounds: [...existing.rounds, pendingRound],
+      status: "reviewing",
+      updatedAt: now,
+    };
+  }
+
+  return {
+    id: crypto.randomUUID(),
+    projectId,
+    chapterNumber: chapterNum,
+    chapterTitle: `第${chapterNum}章`,
+    rounds: [pendingRound],
+    status: "reviewing",
+    latestScore: null,
+    createdAt: now,
+    updatedAt: now,
+  };
+}
+
+function toMetadata(review: ChapterReview) {
+  return {
+    chapterNumber: review.chapterNumber,
+    status: review.status,
+    latestScore: review.latestScore,
+    subType: "jaggers",
+  };
+}
+
+function parseReviewContent(content: string): ChapterReview | null {
+  try {
+    return JSON.parse(content) as ChapterReview;
+  } catch {
+    return null;
+  }
+}
+
+async function getLatestReviewRow(projectId: string, chapterNum: number) {
+  const db = getDb();
+  const [row] = await db
+    .select({
+      id: projectDocuments.id,
+      content: projectDocuments.content,
+    })
+    .from(projectDocuments)
+    .where(
+      and(
+        eq(projectDocuments.projectId, projectId),
+        eq(projectDocuments.category, "review"),
+        sql`${projectDocuments.metadata}->>'subType' = 'jaggers'`,
+        sql`${projectDocuments.metadata}->>'chapterNumber' = ${String(chapterNum)}`,
+      ),
+    )
+    .orderBy(desc(projectDocuments.createdAt));
+
+  return row ?? null;
+}
+
+async function upsertReviewDocument(projectId: string, review: ChapterReview, existingId?: string) {
+  const db = getDb();
+  const values = {
+    projectId,
+    category: "review" as const,
+    title: `review:ch${review.chapterNumber}`,
+    content: JSON.stringify(review),
+    metadata: toMetadata(review),
+  };
+
+  if (existingId) {
+    const [updated] = await db
+      .update(projectDocuments)
+      .set(values)
+      .where(eq(projectDocuments.id, existingId))
+      .returning({ id: projectDocuments.id });
+
+    if (!updated) {
+      return null;
+    }
+
+    return updated.id;
+  }
+
+  const [created] = await db
+    .insert(projectDocuments)
+    .values(values)
+    .returning({ id: projectDocuments.id });
+
+  if (!created) {
+    return null;
+  }
+
+  return created.id;
+}
+
+export function createReviewsRoute(bridge: SessionProjectBridge, reviewEngine: ReviewEngine) {
   const route = new Hono();
 
   /** GET / — 列出项目所有审校记录 */
-  route.get("/", (c) => {
+  route.get("/", async (c) => {
     const projectId = c.req.param("id");
     if (!projectId) {
       return c.json({ error: "Missing project ID" }, 400);
     }
 
-    const reviews: ChapterReview[] = [];
-    for (const r of reviewStore.values()) {
-      if (r.projectId === projectId) {
-        reviews.push(r);
-      }
-    }
+    const db = getDb();
+    const rows = await db
+      .select({
+        content: projectDocuments.content,
+      })
+      .from(projectDocuments)
+      .where(
+        and(
+          eq(projectDocuments.projectId, projectId),
+          eq(projectDocuments.category, "review"),
+          sql`${projectDocuments.metadata}->>'subType' = 'jaggers'`,
+        ),
+      )
+      .orderBy(desc(projectDocuments.createdAt));
 
-    // 如果没有数据，生成 demo 数据（开发用）
-    if (reviews.length === 0) {
-      for (let i = 1; i <= 3; i++) {
-        const demo = seedDemoReview(projectId, i);
-        reviewStore.set(reviewKey(projectId, i), demo);
-        reviews.push(demo);
-      }
-    }
-
-    reviews.sort((a, b) => a.chapterNumber - b.chapterNumber);
+    const reviews = rows
+      .map((row) => parseReviewContent(row.content))
+      .filter((review): review is ChapterReview => review !== null)
+      .sort((a, b) => a.chapterNumber - b.chapterNumber);
 
     return c.json({ reviews, total: reviews.length });
   });
 
   /** GET /:chapterNum — 获取特定章节的审校详情 */
-  route.get("/:chapterNum", (c) => {
+  route.get("/:chapterNum", async (c) => {
     const projectId = c.req.param("id");
     const chapterNum = parseInt(c.req.param("chapterNum"), 10);
 
-    if (!projectId || isNaN(chapterNum)) {
+    if (!projectId) {
+      return c.json({ error: "Missing project ID" }, 400);
+    }
+
+    if (Number.isNaN(chapterNum)) {
       return c.json({ error: "Invalid parameters" }, 400);
     }
 
-    let review = reviewStore.get(reviewKey(projectId, chapterNum));
+    const row = await getLatestReviewRow(projectId, chapterNum);
+    if (!row) {
+      return c.json({ error: "Review not found" }, 404);
+    }
+
+    const review = parseReviewContent(row.content);
     if (!review) {
-      // 生成 demo
-      review = seedDemoReview(projectId, chapterNum);
-      reviewStore.set(reviewKey(projectId, chapterNum), review);
+      return c.json({ error: "Review data is corrupted" }, 500);
     }
 
     return c.json(review);
@@ -180,45 +279,81 @@ export function createReviewsRoute() {
     const projectId = c.req.param("id");
     const chapterNum = parseInt(c.req.param("chapterNum"), 10);
 
-    if (!projectId || isNaN(chapterNum)) {
+    if (!projectId) {
+      return c.json({ error: "Missing project ID" }, 400);
+    }
+
+    if (Number.isNaN(chapterNum)) {
       return c.json({ error: "Invalid parameters" }, 400);
     }
 
-    const key = reviewKey(projectId, chapterNum);
-    const existing = reviewStore.get(key);
+    const body = await c.req.json<{ content?: string }>();
+    const row = await getLatestReviewRow(projectId, chapterNum);
     const now = new Date().toISOString();
 
-    if (existing) {
-      // 添加新一轮审校（模拟）
-      const newRound: ReviewRound = {
-        round: existing.rounds.length + 1,
-        passed: true,
-        score: 88,
-        issues: [
-          {
-            id: crypto.randomUUID(),
-            severity: "MINOR",
-            category: "文风",
-            message: "部分段落过渡略显生硬，但整体通过",
-            verdict: "pending",
-          },
-        ],
-        timestamp: now,
-      };
-      existing.rounds.push(newRound);
-      existing.status = "passed";
-      existing.latestScore = 88;
-      existing.updatedAt = now;
-      reviewStore.set(key, existing);
-      log.info({ projectId, chapterNum, round: newRound.round }, "Review triggered");
-      return c.json(existing);
-    } else {
-      // 创建首轮审校
-      const review = seedDemoReview(projectId, chapterNum);
-      reviewStore.set(key, review);
+    if (row) {
+      const existing = parseReviewContent(row.content);
+      if (!existing) {
+        return c.json({ error: "Review data is corrupted" }, 500);
+      }
+
+      const updated = body.content
+        ? (async () => {
+            const content = body.content as string; // narrowed by ternary guard above
+            await bridge.ensureSession(projectId);
+            const reviewInput: ReviewInput = { content, chapterNumber: chapterNum, arcNumber: 1 };
+            const engineResult = await reviewEngine.review(reviewInput, bridge);
+            const newRound: ReviewRound = {
+              round: existing.rounds.length + 1,
+              passed: engineResult.passed,
+              score: engineResult.score,
+              issues: engineResult.allIssues.map(mapEngineIssue),
+              timestamp: now,
+            };
+
+            return {
+              ...existing,
+              rounds: [...existing.rounds, newRound],
+              status: engineResult.passed ? "passed" : "failed",
+              latestScore: engineResult.score,
+              updatedAt: now,
+            } as ChapterReview;
+          })()
+        : Promise.resolve(buildPendingReview(projectId, chapterNum, existing));
+
+      const nextReview = await updated;
+
+      const savedId = await upsertReviewDocument(projectId, nextReview, row.id);
+      if (!savedId) {
+        return c.json({ error: "Failed to update review" }, 500);
+      }
+
+      log.info({ projectId, chapterNum, round: nextReview.rounds.length }, "Review triggered");
+      return c.json(nextReview);
+    }
+
+    if (body.content) {
+      await bridge.ensureSession(projectId);
+      const reviewInput: ReviewInput = { content: body.content, chapterNumber: chapterNum, arcNumber: 1 };
+      const engineResult = await reviewEngine.review(reviewInput, bridge);
+      const review = buildReviewFromEngine(projectId, chapterNum, engineResult);
+      const savedId = await upsertReviewDocument(projectId, review);
+      if (!savedId) {
+        return c.json({ error: "Failed to create review" }, 500);
+      }
+
       log.info({ projectId, chapterNum, round: 1 }, "Review created");
       return c.json(review, 201);
     }
+
+    const review = buildPendingReview(projectId, chapterNum);
+    const savedId = await upsertReviewDocument(projectId, review);
+    if (!savedId) {
+      return c.json({ error: "Failed to create review" }, 500);
+    }
+
+    log.info({ projectId, chapterNum, round: 1 }, "Review created");
+    return c.json(review, 201);
   });
 
   /** PUT /:chapterNum/issues/:issueId/verdict — 用户裁决 */
@@ -227,7 +362,11 @@ export function createReviewsRoute() {
     const chapterNum = parseInt(c.req.param("chapterNum"), 10);
     const issueId = c.req.param("issueId");
 
-    if (!projectId || isNaN(chapterNum) || !issueId) {
+    if (!projectId) {
+      return c.json({ error: "Missing project ID" }, 400);
+    }
+
+    if (Number.isNaN(chapterNum) || !issueId) {
       return c.json({ error: "Invalid parameters" }, 400);
     }
 
@@ -236,12 +375,16 @@ export function createReviewsRoute() {
       return c.json({ error: "Invalid verdict" }, 400);
     }
 
-    const review = reviewStore.get(reviewKey(projectId, chapterNum));
-    if (!review) {
+    const row = await getLatestReviewRow(projectId, chapterNum);
+    if (!row) {
       return c.json({ error: "Review not found" }, 404);
     }
 
-    // 查找 issue 并更新
+    const review = parseReviewContent(row.content);
+    if (!review) {
+      return c.json({ error: "Review data is corrupted" }, 500);
+    }
+
     let found = false;
     for (const round of review.rounds) {
       for (const issue of round.issues) {
@@ -251,7 +394,9 @@ export function createReviewsRoute() {
           break;
         }
       }
-      if (found) break;
+      if (found) {
+        break;
+      }
     }
 
     if (!found) {
@@ -259,28 +404,62 @@ export function createReviewsRoute() {
     }
 
     review.updatedAt = new Date().toISOString();
+    const savedId = await upsertReviewDocument(projectId, review, row.id);
+    if (!savedId) {
+      return c.json({ error: "Failed to update review" }, 500);
+    }
+
     return c.json({ updated: true, issueId, verdict: body.verdict });
   });
 
   /** POST /:chapterNum/force-pass — 强制通过 */
-  route.post("/:chapterNum/force-pass", (c) => {
+  route.post("/:chapterNum/force-pass", async (c) => {
     const projectId = c.req.param("id");
     const chapterNum = parseInt(c.req.param("chapterNum"), 10);
 
-    if (!projectId || isNaN(chapterNum)) {
+    if (!projectId) {
+      return c.json({ error: "Missing project ID" }, 400);
+    }
+
+    if (Number.isNaN(chapterNum)) {
       return c.json({ error: "Invalid parameters" }, 400);
     }
 
-    const key = reviewKey(projectId, chapterNum);
-    let review = reviewStore.get(key);
+    const row = await getLatestReviewRow(projectId, chapterNum);
+    const now = new Date().toISOString();
+    const review = row
+      ? (() => {
+          const existing = parseReviewContent(row.content);
+          if (!existing) {
+            return null;
+          }
+
+          return {
+            ...existing,
+            status: "force-passed" as const,
+            updatedAt: now,
+          };
+        })()
+      : {
+          id: crypto.randomUUID(),
+          projectId,
+          chapterNumber: chapterNum,
+          chapterTitle: `第${chapterNum}章`,
+          rounds: [],
+          status: "force-passed" as const,
+          latestScore: null,
+          createdAt: now,
+          updatedAt: now,
+        };
 
     if (!review) {
-      review = seedDemoReview(projectId, chapterNum);
+      return c.json({ error: "Review data is corrupted" }, 500);
     }
 
-    review.status = "force-passed";
-    review.updatedAt = new Date().toISOString();
-    reviewStore.set(key, review);
+    const savedId = await upsertReviewDocument(projectId, review, row?.id);
+    if (!savedId) {
+      return c.json({ error: "Failed to update review" }, 500);
+    }
 
     log.info({ projectId, chapterNum }, "Review force-passed");
     return c.json({ status: "force-passed" });

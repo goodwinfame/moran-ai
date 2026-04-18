@@ -1,33 +1,41 @@
 @import "tailwindcss";
 
 @theme {
-  --color-background: #fafafa;
-  --color-foreground: #0a0a0a;
-  --color-card: #ffffff;
-  --color-card-foreground: #0a0a0a;
-  --color-popover: #ffffff;
-  --color-popover-foreground: #0a0a0a;
-  --color-primary: #171717;
-  --color-primary-foreground: #fafafa;
-  --color-secondary: #f5f5f5;
-  --color-secondary-foreground: #171717;
-  --color-muted: #f5f5f5;
-  --color-muted-foreground: #737373;
-  --color-accent: #f5f5f5;
-  --color-accent-foreground: #171717;
+  /* Navy primary palette — from 05-source.html */
+  --color-primary: #1A202C;
+  --color-primary-foreground: #FFFFFF;
+  --color-background: #FFFFFF;
+  --color-foreground: #0f172a;
+  --color-card: #FFFFFF;
+  --color-card-foreground: #0f172a;
+  --color-popover: #FFFFFF;
+  --color-popover-foreground: #0f172a;
+  --color-secondary: #F1F5F9;
+  --color-secondary-foreground: #1A202C;
+  --color-muted: #F1F5F9;
+  --color-muted-foreground: #64748B;
+  --color-accent: #F8FAFC;
+  --color-accent-foreground: #1A202C;
   --color-destructive: #ef4444;
-  --color-destructive-foreground: #fafafa;
-  --color-border: #e5e5e5;
-  --color-input: #e5e5e5;
-  --color-ring: #0a0a0a;
-  --radius: 0.625rem;
+  --color-destructive-foreground: #FFFFFF;
+  --color-border: #E2E8F0;
+  --color-input: #E2E8F0;
+  --color-ring: #1A202C;
+  --radius: 0.75rem;
 
-  /* Sidebar-specific */
-  --color-sidebar: #fafafa;
-  --color-sidebar-foreground: #0a0a0a;
-  --color-sidebar-border: #e5e5e5;
-  --color-sidebar-accent: #f0f0f0;
-  --color-sidebar-accent-foreground: #171717;
+  /* Sidebar — deep navy */
+  --color-sidebar: #1A202C;
+  --color-sidebar-foreground: #E2E8F0;
+  --color-sidebar-border: rgba(255,255,255,0.1);
+  --color-sidebar-accent: #FFFFFF;
+  --color-sidebar-accent-foreground: #1A202C;
+
+  /* Chat area */
+  --color-chat-bg: #F8F9FA;
+
+  /* Fonts */
+  --font-sans: 'Manrope', 'Public Sans', system-ui, sans-serif;
+  --font-serif: 'Noto Serif SC', 'Source Han Serif SC', serif;
 }
 
 @layer base {
@@ -38,6 +46,26 @@
     @apply bg-background text-foreground antialiased;
     font-feature-settings: "rlig" 1, "calt" 1;
   }
+}
+
+/* Material Symbols base */
+.material-symbols-outlined {
+  font-variation-settings: 'FILL' 0, 'wght' 400, 'GRAD' 0, 'opsz' 24;
+}
+
+/* Custom scrollbar matching 05 */
+.custom-scrollbar::-webkit-scrollbar {
+  width: 4px;
+}
+.custom-scrollbar::-webkit-scrollbar-track {
+  background: transparent;
+}
+.custom-scrollbar::-webkit-scrollbar-thumb {
+  background: #e2e8f0;
+  border-radius: 10px;
+}
+.custom-scrollbar::-webkit-scrollbar-thumb:hover {
+  background: #cbd5e1;
 }
 
 /* Writing cursor blink animation */

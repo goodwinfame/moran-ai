@@ -1,0 +1,35 @@
+<svg width="512" height="512" viewBox="0 0 512 512" fill="none" xmlns="http://www.w3.org/2000/svg">
+  <!-- 墨染 MoRan Logo — 墨滴晕染（V6精调版） -->
+  <!-- 中心墨滴落点 → 向外4层菱形晕染扩散，逐层变淡 -->
+  <!-- 菱形纵向略拉长，模拟墨滴重力方向 -->
+  <defs>
+    <radialGradient id="core" cx="256" cy="244" r="52" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#1A202C" stop-opacity="1.0"/>
+      <stop offset="0.8" stop-color="#1A202C" stop-opacity="0.92"/>
+      <stop offset="1" stop-color="#2D3748" stop-opacity="0.80"/>
+    </radialGradient>
+    <radialGradient id="ring1" cx="256" cy="250" r="100" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#1A202C" stop-opacity="0.55"/>
+      <stop offset="0.7" stop-color="#2D3748" stop-opacity="0.28"/>
+      <stop offset="1" stop-color="#2D3748" stop-opacity="0.12"/>
+    </radialGradient>
+    <radialGradient id="ring2" cx="256" cy="256" r="160" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#2D3748" stop-opacity="0.32"/>
+      <stop offset="0.6" stop-color="#3D5A6E" stop-opacity="0.16"/>
+      <stop offset="1" stop-color="#3D5A6E" stop-opacity="0.04"/>
+    </radialGradient>
+    <radialGradient id="ring3" cx="256" cy="260" r="220" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#3D5A6E" stop-opacity="0.18"/>
+      <stop offset="0.5" stop-color="#4A6B7A" stop-opacity="0.08"/>
+      <stop offset="1" stop-color="#4A6B7A" stop-opacity="0.02"/>
+    </radialGradient>
+  </defs>
+  <!-- 第4层（最外）— 极淡晕染边界 -->
+  <path d="M256 52 Q420 172, 460 256 Q420 340, 256 460 Q92 340, 52 256 Q92 172, 256 52 Z" fill="url(#ring3)"/>
+  <!-- 第3层 — 淡晕染 -->
+  <path d="M256 96 Q392 186, 416 256 Q392 326, 256 416 Q120 326, 96 256 Q120 186, 256 96 Z" fill="url(#ring2)"/>
+  <!-- 第2层 — 中等晕染 -->
+  <path d="M256 152 Q348 204, 360 256 Q348 308, 256 360 Q164 308, 152 256 Q164 204, 256 152 Z" fill="url(#ring1)"/>
+  <!-- 核心墨滴 — 最深 -->
+  <path d="M256 196 Q304 224, 316 256 Q304 288, 256 316 Q208 288, 196 256 Q208 224, 256 196 Z" fill="url(#core)"/>
+</svg>

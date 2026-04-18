@@ -1,4 +1,9 @@
-const API_BASE = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:3200";
+/**
+ * 客户端 API 基础路径。
+ * 浏览器发 /api/* → Next.js rewrite → Hono，所以用空字符串（同源）。
+ * 服务端 Server Component 直连 Hono，使用 @/lib/server-api 的 API_UPSTREAM。
+ */
+export const API_BASE = "";
 
 export interface ApiError {
   error: string;

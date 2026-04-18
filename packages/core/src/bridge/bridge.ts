@@ -7,9 +7,8 @@
  * 3. 通过 Session 调用指定 Agent
  * 4. 追踪 Session 生命周期
  *
- * 注意：本模块在 M1.3 阶段实现框架和接口，
- * 实际的 OpenCode SDK 调用在 M1.4 阶段集成。
- * 当前使用 placeholder 实现，标记为 TODO。
+ * 传输层采用依赖注入：构造时传入 BridgeTransport 则走真实 SDK，
+ * 不传则回退到 placeholder 模式（兼容测试）。
  */
 
 import type { AgentId } from "../agents/types.js";
@@ -19,6 +18,7 @@ import type {
   AgentInvocation,
   AgentResponse,
   BridgeConfig,
+  BridgeTransport,
   SessionBinding,
 } from "./types.js";
 import { DEFAULT_BRIDGE_CONFIG } from "./types.js";
@@ -26,10 +26,17 @@ import { DEFAULT_BRIDGE_CONFIG } from "./types.js";
 export class SessionProjectBridge {
   private bindings: Map<string, SessionBinding> = new Map();
   private readonly config: BridgeConfig;
+  private readonly transport: BridgeTransport | null;
   private readonly logger = createLogger("bridge");
 
-  constructor(config?: Partial<BridgeConfig>) {
+  constructor(config?: Partial<BridgeConfig>, transport?: BridgeTransport) {
     this.config = { ...DEFAULT_BRIDGE_CONFIG, ...config };
+    this.transport = transport ?? null;
+  }
+
+  /** 是否有真实传输层（非 placeholder 模式） */
+  hasTransport(): boolean {
+    return this.transport !== null;
   }
 
   /** 获取当前配置 */
@@ -70,10 +77,15 @@ export class SessionProjectBridge {
       return existing;
     }
 
-    // TODO: M1.4 — 调用 OpenCode SDK 创建 Session
-    // const session = await client.session.create({ body: { title: `MoRan Project ${projectId}` } });
-    const sessionId = `moran-session-${projectId}-${Date.now()}`;
-    this.logger.info({ projectId, sessionId }, "Created new session (placeholder)");
+    let sessionId: string;
+    if (this.transport) {
+      sessionId = await this.transport.createSession(`MoRan Project ${projectId}`);
+      this.logger.info({ projectId, sessionId }, "Created new session via transport");
+    } else {
+      // Placeholder 模式（无 transport，用于测试或 M1.3 兼容）
+      sessionId = `moran-session-${projectId}-${Date.now()}`;
+      this.logger.info({ projectId, sessionId }, "Created new session (placeholder)");
+    }
 
     return this.bind(sessionId, projectId);
   }
@@ -81,8 +93,8 @@ export class SessionProjectBridge {
   /**
    * 调用 Agent
    *
-   * 在 M1.3 阶段返回 placeholder 响应。
-   * M1.4 会集成 OpenCode SDK 的 session.prompt() 调用。
+   * 有 transport → 真实调用 OpenCode SDK（需先 ensureSession 或提供 sessionId）
+   * 无 transport → placeholder 响应（测试兼容）
    */
   async invokeAgent(invocation: AgentInvocation): Promise<AgentResponse> {
     const agent = defaultRegistry.get(invocation.agentId);
@@ -90,20 +102,41 @@ export class SessionProjectBridge {
       throw new Error(`Agent "${invocation.agentId}" not found in registry`);
     }
 
+    if (this.transport) {
+      // ── 真实调用模式 ──
+      const sessionId = invocation.sessionId ?? this.findActiveSessionId();
+      if (!sessionId) {
+        throw new Error(
+          "No active session found. Call ensureSession(projectId) before invokeAgent(), " +
+          "or provide sessionId in the invocation.",
+        );
+      }
+
+      // 拼接 system prompt（匹配引擎调用模式）
+      const fullMessage = invocation.systemPrompt
+        ? `${invocation.systemPrompt}\n\n---\n\n${invocation.message}`
+        : invocation.message;
+
+      this.logger.info(
+        { agentId: invocation.agentId, sessionId, stream: invocation.stream ?? false },
+        "Invoking agent via transport",
+      );
+
+      const result = await this.transport.prompt(sessionId, fullMessage);
+
+      return {
+        content: result.content,
+        sessionId,
+        usage: result.usage,
+        agentId: invocation.agentId,
+      };
+    }
+
+    // ── Placeholder 模式（无 transport，兼容测试） ──
     this.logger.info(
       { agentId: invocation.agentId, stream: invocation.stream ?? false },
       "Invoking agent (placeholder)",
     );
-
-    // TODO: M1.4 — 实际调用 OpenCode SDK
-    // const response = await client.session.prompt({
-    //   sessionId: invocation.sessionId,
-    //   body: {
-    //     message: invocation.message,
-    //     agent: invocation.agentId,
-    //     stream: invocation.stream,
-    //   },
-    // });
 
     return {
       content: `[Placeholder] Agent ${agent.name} (${agent.id}) response to: ${invocation.message.slice(0, 50)}...`,
@@ -111,6 +144,19 @@ export class SessionProjectBridge {
       usage: { inputTokens: 0, outputTokens: 0 },
       agentId: invocation.agentId,
     };
+  }
+
+  /**
+   * 查找当前活跃的 sessionId
+   * 用于 invokeAgent 未提供 sessionId 时的回退
+   */
+  private findActiveSessionId(): string | undefined {
+    for (const binding of this.bindings.values()) {
+      if (binding.status === "active") {
+        return binding.sessionId;
+      }
+    }
+    return undefined;
   }
 
   /**

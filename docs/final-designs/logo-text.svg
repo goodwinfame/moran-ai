@@ -1,0 +1,31 @@
+<svg width="360" height="80" viewBox="0 0 360 80" fill="none" xmlns="http://www.w3.org/2000/svg">
+  <!-- 墨染 MoRan — 文字Logo 变体B：图标 + 统一色中英文 -->
+  <!-- 风格：中英文同色(navy)，英文小字在中文下方，更紧凑 -->
+  <defs>
+    <radialGradient id="ib_core" cx="40" cy="38" r="10" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#1A202C" stop-opacity="1.0"/>
+      <stop offset="1" stop-color="#2D3748" stop-opacity="0.80"/>
+    </radialGradient>
+    <radialGradient id="ib_r1" cx="40" cy="39" r="20" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#1A202C" stop-opacity="0.50"/>
+      <stop offset="1" stop-color="#2D3748" stop-opacity="0.10"/>
+    </radialGradient>
+    <radialGradient id="ib_r2" cx="40" cy="40" r="32" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#3D5A6E" stop-opacity="0.28"/>
+      <stop offset="1" stop-color="#3D5A6E" stop-opacity="0.03"/>
+    </radialGradient>
+  </defs>
+
+  <!-- 图标 -->
+  <g transform="translate(0, 0)">
+    <path d="M40 8 Q68 26, 72 40 Q68 54, 40 72 Q12 54, 8 40 Q12 26, 40 8 Z" fill="url(#ib_r2)"/>
+    <path d="M40 16 Q60 30, 64 40 Q60 50, 40 64 Q20 50, 16 40 Q20 30, 40 16 Z" fill="url(#ib_r1)"/>
+    <path d="M40 28 Q50 34, 52 40 Q50 46, 40 52 Q30 46, 28 40 Q30 34, 40 28 Z" fill="url(#ib_core)"/>
+  </g>
+
+  <!-- 中文：墨染（大） -->
+  <text x="88" y="42" font-family="'Noto Serif SC', 'Source Han Serif SC', serif" font-size="34" font-weight="600" fill="#1A202C" letter-spacing="6">墨染</text>
+
+  <!-- 英文：MORAN（小，中文下方对齐） -->
+  <text x="90" y="64" font-family="'Manrope', 'Inter', sans-serif" font-size="14" font-weight="400" fill="#1A202C" fill-opacity="0.45" letter-spacing="8">MORAN</text>
+</svg>

@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useEffect, useCallback } from "react";
-import { api } from "@/lib/api";
+import { api, API_BASE } from "@/lib/api";
 
 // ── Types (mirroring server route) ─────────────────
 
@@ -247,7 +247,7 @@ export function useAnalysisDetail(projectId: string | null, analysisId: string |
     if (!projectId || !analysisId) return null;
     try {
       const res = await fetch(
-        `${process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:3200"}/api/projects/${projectId}/analysis/${analysisId}/export`,
+        `${API_BASE}/api/projects/${projectId}/analysis/${analysisId}/export`,
       );
       if (!res.ok) return null;
       return await res.text();

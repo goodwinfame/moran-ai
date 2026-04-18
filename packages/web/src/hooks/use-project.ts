@@ -25,6 +25,10 @@ interface ProjectListResponse {
   total: number;
 }
 
+const VALID_STATUSES = new Set([
+  "planning", "intent", "world", "characters", "style", "outline", "ready", "active",
+]);
+
 function toProjectInfo(p: ProjectResponse): ProjectInfo {
   return {
     id: p.id,
@@ -33,9 +37,7 @@ function toProjectInfo(p: ProjectResponse): ProjectInfo {
     totalWords: p.totalWordCount,
     chapterCount: p.currentChapter,
     currentArc: p.currentArc,
-    status: (p.status === "writing" || p.status === "reviewing" || p.status === "archiving")
-      ? p.status
-      : "idle",
+    status: VALID_STATUSES.has(p.status) ? (p.status as ProjectInfo["status"]) : "planning",
   };
 }
 

@@ -1,9 +1,35 @@
 import { describe, expect, it } from "vitest";
-import { EventBus, Orchestrator } from "@moran/core";
+import { EventBus, Orchestrator, SessionProjectBridge } from "@moran/core";
 import { createApp } from "../../app.js";
 
 describe("Writing routes", () => {
+  /** Setup with default pipeline (for testing pipeline-mode responses) */
   const setup = () => {
+    const eventBus = new EventBus();
+    const bridge = new SessionProjectBridge(); // placeholder mode — no transport, no SDK calls
+    const orchestrators = new Map<string, Orchestrator>();
+    const getOrCreateOrchestrator = (projectId: string) => {
+      if (!orchestrators.has(projectId)) {
+        orchestrators.set(projectId, new Orchestrator(projectId, { heartbeatInterval: 60_000 }, eventBus));
+      }
+      return orchestrators.get(projectId);
+    };
+
+    const { app } = createApp({
+      eventBus,
+      getOrchestrator: getOrCreateOrchestrator,
+      bridge, // override default transport-backed bridge for test isolation
+    });
+
+    return { app, orchestrators, getOrCreateOrchestrator };
+  };
+
+  /**
+   * Setup without pipeline — orchestrator-only mode.
+   * Used for state management tests (409 conflict, pause, resume) to avoid
+   * async pipeline failures resetting orchestrator state via microtasks.
+   */
+  const setupOrchestratorOnly = () => {
     const eventBus = new EventBus();
     const orchestrators = new Map<string, Orchestrator>();
     const getOrCreateOrchestrator = (projectId: string) => {
@@ -16,6 +42,7 @@ describe("Writing routes", () => {
     const { app } = createApp({
       eventBus,
       getOrchestrator: getOrCreateOrchestrator,
+      getPipeline: () => undefined,
     });
 
     return { app, orchestrators, getOrCreateOrchestrator };
@@ -42,10 +69,12 @@ describe("Writing routes", () => {
         body: JSON.stringify({}),
       });
 
-      expect(res.status).toBe(200);
+      // Pipeline mode returns 202 Accepted (async)
+      expect(res.status).toBe(202);
       const body = await res.json();
       expect(body.status).toBe("writing");
       expect(body.chapterNumber).toBe(1);
+      expect(body.mode).toBe("pipeline");
     });
 
     it("accepts custom chapter number", async () => {
@@ -56,22 +85,24 @@ describe("Writing routes", () => {
         body: JSON.stringify({ chapterNumber: 5, arcNumber: 2 }),
       });
 
-      expect(res.status).toBe(200);
+      // Pipeline mode returns 202 Accepted (async)
+      expect(res.status).toBe(202);
       const body = await res.json();
       expect(body.chapterNumber).toBe(5);
       expect(body.arcNumber).toBe(2);
+      expect(body.mode).toBe("pipeline");
     });
 
     it("returns 409 when already writing", async () => {
-      const { app } = setup();
+      const { app } = setupOrchestratorOnly();
 
-      // Start writing first
+      // Start writing first (orchestrator-only: synchronous state change)
       await app.request("/api/projects/proj-1/writing/next", {
         method: "POST",
         body: JSON.stringify({}),
       });
 
-      // Try to start again
+      // Try to start again — blocked by phase check
       const res = await app.request("/api/projects/proj-1/writing/next", {
         method: "POST",
         body: JSON.stringify({}),
@@ -85,9 +116,9 @@ describe("Writing routes", () => {
 
   describe("POST /api/projects/:id/writing/pause", () => {
     it("pauses an active writing session", async () => {
-      const { app } = setup();
+      const { app } = setupOrchestratorOnly();
 
-      // Start writing
+      // Start writing (orchestrator-only: synchronous state change)
       await app.request("/api/projects/proj-1/writing/next", {
         method: "POST",
         body: JSON.stringify({}),
@@ -114,9 +145,9 @@ describe("Writing routes", () => {
 
   describe("POST /api/projects/:id/writing/continue", () => {
     it("resumes a paused session", async () => {
-      const { app } = setup();
+      const { app } = setupOrchestratorOnly();
 
-      // Start and pause
+      // Start and pause (orchestrator-only: synchronous state change)
       await app.request("/api/projects/proj-1/writing/next", {
         method: "POST",
         body: JSON.stringify({}),

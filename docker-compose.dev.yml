@@ -1,5 +1,5 @@
-# docker-compose.dev.yml — Development environment with hot-reload and monitoring
-# Usage: docker compose -f docker-compose.dev.yml up -d
+# docker-compose.dev.yml — Development environment
+# Usage: pnpm dev (auto) or docker compose -f docker-compose.dev.yml up -d
 services:
   postgres:
     image: postgres:17-alpine
@@ -17,21 +17,20 @@ services:
       timeout: 5s
       retries: 5
 
-  pgadmin:
-    image: dpage/pgadmin4:latest
-    environment:
-      PGADMIN_DEFAULT_EMAIL: ${PGADMIN_EMAIL:-admin@moran.dev}
-      PGADMIN_DEFAULT_PASSWORD: ${PGADMIN_PASSWORD:-admin}
-      PGADMIN_CONFIG_SERVER_MODE: "False"
+  opencode:
+    image: ghcr.io/anomalyco/opencode:latest
+    command: ["serve", "--hostname", "0.0.0.0", "--port", "4096"]
     ports:
-      - "5050:80"
-    depends_on:
-      postgres:
-        condition: service_healthy
+      - "4096:4096"
     volumes:
-      - pgadmin-data:/var/lib/pgadmin
-      - ./scripts/pgadmin-servers.json:/pgadmin4/servers.json:ro
+      - ${USERPROFILE}/.local/share/opencode/auth.json:/root/.local/share/opencode/auth.json:ro
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD-SHELL", "wget --no-verbose --tries=1 --spider http://127.0.0.1:4096/global/health || exit 1"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+      start_period: 10s
 
 volumes:
   pgdata-dev:
-  pgadmin-data:

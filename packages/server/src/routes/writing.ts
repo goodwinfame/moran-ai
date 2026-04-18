@@ -10,7 +10,7 @@
  */
 
 import { Hono } from "hono";
-import type { Orchestrator, ChapterPipeline } from "@moran/core";
+import type { Orchestrator, ChapterPipeline, SessionProjectBridge } from "@moran/core";
 import { createLogger } from "@moran/core/logger";
 
 const log = createLogger("writing-routes");
@@ -26,10 +26,12 @@ export type PipelineProvider = (projectId: string) => ChapterPipeline | undefine
  *
  * @param getOrchestrator - 获取项目对应的 Orchestrator 实例
  * @param getPipeline - 获取项目对应的 ChapterPipeline 实例（可选，M1.4+）
+ * @param bridge - Bridge 实例，用于在 pipeline 调用前确保 session 存在
  */
 export function createWritingRoute(
   getOrchestrator: OrchestratorProvider,
   getPipeline?: PipelineProvider,
+  bridge?: SessionProjectBridge,
 ) {
   const route = new Hono();
 
@@ -83,6 +85,14 @@ export function createWritingRoute(
     // 尝试使用 ChapterPipeline（M1.4+）
     const pipeline = getPipeline?.(projectId);
     if (pipeline) {
+      // Pipeline 内部会调用 orchestrator.startWriting()，这里不重复调用。
+      // 上面的 phase !== "idle" 检查已经防止了并发写入。
+
+      // 确保 Bridge 有活跃 session（pipeline 内部会调用 bridge.invokeAgent）
+      if (bridge) {
+        await bridge.ensureSession(projectId);
+      }
+
       // 异步执行管线，立即返回 202 Accepted
       // 客户端通过 SSE 订阅获取实时进度
       const chapterType = "normal" as const; // TODO: 从 brief/outline 推断

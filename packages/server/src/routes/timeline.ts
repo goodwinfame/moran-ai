@@ -8,160 +8,123 @@
  */
 
 import { Hono } from "hono";
+import { and, eq } from "drizzle-orm";
+import { getDb } from "@moran/core/db";
+import { timelineEvents } from "@moran/core/db/schema";
 import { createLogger } from "@moran/core/logger";
 
 const log = createLogger("timeline-routes");
 
-export interface TimelineEvent {
+type DbSignificance = "minor" | "moderate" | "major" | "critical";
+type ResponseSignificance = "major" | "minor" | "turning_point";
+
+type TimelineGroup = {
   id: string;
-  projectId: string;
-  title: string;
   content: string;
+  order: number;
+};
+
+type TimelineItem = {
+  id: string;
+  content: string;
+  title: string;
   group: string;
   start: string;
   end: string | null;
   type: "point" | "range" | "box";
-  chapterNumber: number | null;
-  significance: "major" | "minor" | "turning_point";
   className: string;
+  chapterNumber: number | null;
+  significance: ResponseSignificance;
   createdAt: string;
   updatedAt: string;
+};
+
+const DEFAULT_GROUPS: TimelineGroup[] = [
+  { id: "main-plot", content: "主线", order: 1 },
+  { id: "character-arc", content: "角色弧", order: 2 },
+  { id: "world-events", content: "世界事件", order: 3 },
+];
+
+const GROUP_BY_SIGNIFICANCE: Record<DbSignificance, string> = {
+  minor: "world-events",
+  moderate: "character-arc",
+  major: "main-plot",
+  critical: "main-plot",
+};
+
+function toDbSignificance(value: string | undefined): DbSignificance {
+  if (value === "minor" || value === "moderate" || value === "major" || value === "critical") return value;
+  if (value === "turning_point") return "critical";
+  return "minor";
 }
 
-export interface TimelineGroup {
-  id: string;
-  content: string;
-  order: number;
+function toResponseSignificance(value: DbSignificance): ResponseSignificance {
+  if (value === "minor") return "minor";
+  if (value === "critical") return "turning_point";
+  return "major";
 }
 
-// ── In-memory store ─────────────────────────────
+function buildDescription(title?: string, content?: string): string {
+  const t = title?.trim() ?? "";
+  const c = content?.trim() ?? "";
 
-const eventStore = new Map<string, TimelineEvent>();
+  if (t && c) return `${t}\n\n${c}`;
+  return t || c;
+}
 
-function seedDemoEvents(projectId: string) {
-  const now = new Date().toISOString();
+function parseDescription(description: string): { title: string; content: string } {
+  const split = description.indexOf("\n\n");
 
-  const groups: TimelineGroup[] = [
-    { id: "main-plot", content: "主线", order: 1 },
-    { id: "character-arc", content: "角色弧", order: 2 },
-    { id: "world-events", content: "世界事件", order: 3 },
-  ];
-
-  const events: TimelineEvent[] = [
-    {
-      id: "evt-1", projectId, title: "开篇：少年入山门",
-      content: "主角被天剑宗长老发现灵根，收入门下", group: "main-plot",
-      start: "2025-01-01", end: null, type: "point", chapterNumber: 1,
-      significance: "major", className: "timeline-major",
-      createdAt: now, updatedAt: now,
-    },
-    {
-      id: "evt-2", projectId, title: "外门试炼",
-      content: "三年一度的外门弟子晋升试炼", group: "main-plot",
-      start: "2025-01-15", end: "2025-01-20", type: "range", chapterNumber: 5,
-      significance: "minor", className: "timeline-minor",
-      createdAt: now, updatedAt: now,
-    },
-    {
-      id: "evt-3", projectId, title: "转折：发现秘境",
-      content: "主角在试炼中意外发现远古秘境入口", group: "main-plot",
-      start: "2025-01-20", end: null, type: "point", chapterNumber: 8,
-      significance: "turning_point", className: "timeline-turning-point",
-      createdAt: now, updatedAt: now,
-    },
-    {
-      id: "evt-4", projectId, title: "主角觉醒剑意",
-      content: "在秘境中顿悟剑道真意，实力暴涨", group: "character-arc",
-      start: "2025-01-25", end: null, type: "point", chapterNumber: 12,
-      significance: "major", className: "timeline-major",
-      createdAt: now, updatedAt: now,
-    },
-    {
-      id: "evt-5", projectId, title: "魔族入侵前兆",
-      content: "幽冥深渊魔气异动，边境小国受袭", group: "world-events",
-      start: "2025-01-10", end: "2025-02-01", type: "range", chapterNumber: 3,
-      significance: "minor", className: "timeline-minor",
-      createdAt: now, updatedAt: now,
-    },
-    {
-      id: "evt-6", projectId, title: "师兄叛变",
-      content: "大师兄被魔族蛊惑，背叛宗门", group: "character-arc",
-      start: "2025-02-05", end: null, type: "point", chapterNumber: 15,
-      significance: "turning_point", className: "timeline-turning-point",
-      createdAt: now, updatedAt: now,
-    },
-    {
-      id: "evt-7", projectId, title: "宗门大比",
-      content: "各大宗门齐聚苍云山，举行五年一度的大比", group: "main-plot",
-      start: "2025-02-10", end: "2025-02-20", type: "range", chapterNumber: 18,
-      significance: "major", className: "timeline-major",
-      createdAt: now, updatedAt: now,
-    },
-  ];
-
-  // Store groups as metadata on events (vis-timeline consumes groups separately)
-  for (const evt of events) {
-    eventStore.set(evt.id, evt);
+  if (split === -1) {
+    return { title: description, content: "" };
   }
 
-  return groups;
+  return {
+    title: description.slice(0, split),
+    content: description.slice(split + 2),
+  };
 }
 
-// ── Route factory ───────────────────────────────
+function toTimelineItem(row: typeof timelineEvents.$inferSelect): TimelineItem {
+  const parsed = parseDescription(row.description);
+  const significance = toResponseSignificance(row.significance as DbSignificance);
+
+  return {
+    id: row.id,
+    content: parsed.title,
+    title: parsed.content,
+    group: GROUP_BY_SIGNIFICANCE[row.significance as DbSignificance],
+    start: row.storyTimestamp ?? "",
+    end: null,
+    type: "point",
+    className: `timeline-${significance}`,
+    chapterNumber: row.chapterNumber,
+    significance,
+    createdAt: (row.createdAt ?? new Date()).toISOString(),
+    updatedAt: (row.createdAt ?? new Date()).toISOString(),
+  };
+}
 
 export function createTimelineRoute() {
   const route = new Hono();
 
-  /** GET / — 时间线数据 */
-  route.get("/", (c) => {
+  route.get("/", async (c) => {
     const projectId = c.req.param("id");
     if (!projectId) return c.json({ error: "Missing project ID" }, 400);
 
-    const hasData = Array.from(eventStore.values()).some(
-      (e) => e.projectId === projectId,
-    );
+    const db = getDb();
+    const rows = await db
+      .select()
+      .from(timelineEvents)
+      .where(eq(timelineEvents.projectId, projectId));
 
-    let groups: TimelineGroup[];
-    if (!hasData) {
-      groups = seedDemoEvents(projectId);
-    } else {
-      // Derive groups from existing events
-      const groupSet = new Set<string>();
-      for (const evt of eventStore.values()) {
-        if (evt.projectId === projectId) groupSet.add(evt.group);
-      }
-      const groupLabels: Record<string, string> = {
-        "main-plot": "主线",
-        "character-arc": "角色弧",
-        "world-events": "世界事件",
-        "sub-plot": "支线",
-      };
-      groups = Array.from(groupSet).map((g, i) => ({
-        id: g,
-        content: groupLabels[g] ?? g,
-        order: i + 1,
-      }));
-    }
+    const items = rows.map(toTimelineItem);
+    const groupIds = new Set(items.map((item) => item.group));
+    const groups = items.length === 0 ? DEFAULT_GROUPS : DEFAULT_GROUPS.filter((group) => groupIds.has(group.id));
 
-    const events = Array.from(eventStore.values())
-      .filter((e) => e.projectId === projectId)
-      .map((e) => ({
-        id: e.id,
-        content: e.title,
-        title: e.content,
-        group: e.group,
-        start: e.start,
-        end: e.end,
-        type: e.type,
-        className: e.className,
-        chapterNumber: e.chapterNumber,
-        significance: e.significance,
-      }));
-
-    return c.json({ items: events, groups, total: events.length });
+    return c.json({ items, groups, total: items.length });
   });
 
-  /** POST / — 新增事件 */
   route.post("/", async (c) => {
     const projectId = c.req.param("id");
     if (!projectId) return c.json({ error: "Missing project ID" }, 400);
@@ -172,69 +135,109 @@ export function createTimelineRoute() {
       group?: string;
       start?: string;
       end?: string | null;
-      type?: TimelineEvent["type"];
+      type?: "point" | "range" | "box";
       chapterNumber?: number | null;
-      significance?: TimelineEvent["significance"];
+      significance?: ResponseSignificance | DbSignificance;
+      className?: string;
     }>();
 
-    if (!body.title) return c.json({ error: "title is required" }, 400);
+    if (!body.title && !body.content) return c.json({ error: "title is required" }, 400);
 
-    const id = crypto.randomUUID();
-    const now = new Date().toISOString();
-    const event: TimelineEvent = {
-      id,
-      projectId,
-      title: body.title,
-      content: body.content ?? "",
-      group: body.group ?? "main-plot",
-      start: body.start ?? now.split("T")[0] ?? now,
-      end: body.end ?? null,
-      type: body.type ?? "point",
-      chapterNumber: body.chapterNumber ?? null,
-      significance: body.significance ?? "minor",
-      className: `timeline-${body.significance ?? "minor"}`,
-      createdAt: now,
-      updatedAt: now,
-    };
+    const db = getDb();
+    const [row] = await db
+      .insert(timelineEvents)
+      .values({
+        projectId,
+        chapterNumber: body.chapterNumber ?? null,
+        storyTimestamp: body.start ?? new Date().toISOString(),
+        description: buildDescription(body.title, body.content),
+        characterIds: [],
+        locationId: null,
+        significance: toDbSignificance(body.significance),
+      })
+      .returning();
 
-    eventStore.set(id, event);
-    log.info({ id, title: body.title }, "Timeline event created");
+    if (!row) return c.json({ error: "Failed to create event" }, 500);
+    const event = toTimelineItem(row);
+    log.info({ id: event.id, title: event.content }, "Timeline event created");
 
-    return c.json(event, 201);
+    return c.json(
+      {
+        ...event,
+        group: body.group ?? event.group,
+        end: body.end ?? null,
+        type: body.type ?? "point",
+        className: body.className ?? event.className,
+      },
+      201,
+    );
   });
 
-  /** PUT /:eventId — 更新事件 */
   route.put("/:eventId", async (c) => {
+    const projectId = c.req.param("id");
     const eventId = c.req.param("eventId");
-    const existing = eventStore.get(eventId);
+    if (!projectId || !eventId) return c.json({ error: "Missing parameters" }, 400);
+
+    const body = await c.req.json<{
+      title?: string;
+      content?: string;
+      group?: string;
+      start?: string;
+      end?: string | null;
+      type?: "point" | "range" | "box";
+      chapterNumber?: number | null;
+      significance?: ResponseSignificance | DbSignificance;
+      className?: string;
+    }>();
+
+    const db = getDb();
+    const [existing] = await db
+      .select()
+      .from(timelineEvents)
+      .where(and(eq(timelineEvents.id, eventId), eq(timelineEvents.projectId, projectId)));
+
     if (!existing) return c.json({ error: "Event not found" }, 404);
 
-    const body = await c.req.json<Partial<TimelineEvent>>();
-    const updated: TimelineEvent = {
-      ...existing,
-      ...body,
-      id: existing.id,
-      projectId: existing.projectId,
-      createdAt: existing.createdAt,
-      updatedAt: new Date().toISOString(),
-    };
+    const existingParsed = parseDescription(existing.description);
+    const [row] = await db
+      .update(timelineEvents)
+      .set({
+        chapterNumber: body.chapterNumber ?? existing.chapterNumber,
+        storyTimestamp: body.start ?? existing.storyTimestamp,
+        description: buildDescription(body.title ?? existingParsed.title, body.content ?? existingParsed.content),
+        significance: body.significance ? toDbSignificance(body.significance) : existing.significance,
+      })
+      .where(and(eq(timelineEvents.id, eventId), eq(timelineEvents.projectId, projectId)))
+      .returning();
 
-    eventStore.set(eventId, updated);
-    log.info({ eventId, title: updated.title }, "Timeline event updated");
+    if (!row) return c.json({ error: "Failed to update event" }, 500);
+    const updated = toTimelineItem(row);
+    log.info({ eventId, title: updated.content }, "Timeline event updated");
 
-    return c.json(updated);
+    return c.json({
+      ...updated,
+      group: body.group ?? updated.group,
+      end: body.end ?? null,
+      type: body.type ?? "point",
+      className: body.className ?? updated.className,
+    });
   });
 
-  /** DELETE /:eventId — 删除事件 */
-  route.delete("/:eventId", (c) => {
+  route.delete("/:eventId", async (c) => {
+    const projectId = c.req.param("id");
     const eventId = c.req.param("eventId");
-    if (!eventStore.has(eventId)) {
-      return c.json({ error: "Event not found" }, 404);
-    }
+    if (!projectId || !eventId) return c.json({ error: "Missing parameters" }, 400);
 
-    eventStore.delete(eventId);
+    const db = getDb();
+
+    const result = await db
+      .delete(timelineEvents)
+      .where(and(eq(timelineEvents.id, eventId), eq(timelineEvents.projectId, projectId)))
+      .returning({ id: timelineEvents.id });
+
+    if (result.length === 0) return c.json({ error: "Event not found" }, 404);
+
     log.info({ eventId }, "Timeline event deleted");
-
     return c.json({ deleted: true });
   });
 

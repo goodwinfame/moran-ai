@@ -8,85 +8,42 @@
  */
 
 import { Hono } from "hono";
+import { eq, and, inArray } from "drizzle-orm";
+import { getDb } from "@moran/core/db";
+import { locations } from "@moran/core/db/schema";
 import { createLogger } from "@moran/core/logger";
 
 const log = createLogger("locations-routes");
 
-export interface LocationData {
-  id: string;
-  projectId: string;
-  name: string;
-  parentId: string | null;
-  type: "realm" | "region" | "city" | "area" | "building" | "custom";
-  description: string;
-  attributes: Record<string, string>;
-  createdAt: string;
-  updatedAt: string;
-}
+type LocationRow = typeof locations.$inferSelect;
+type LocationInsert = typeof locations.$inferInsert;
+
+type LocationTreeSource = Pick<LocationRow, "id" | "name" | "type" | "description" | "parentId">;
+
+type LocationWriteInput = {
+  name?: string;
+  parentId?: string | null;
+  type?: string | null;
+  description?: string | null;
+  aliases?: string[] | null;
+  sensoryDetails?: string | null;
+  layout?: string | null;
+  significance?: LocationInsert["significance"] | null;
+  firstAppearance?: number | null;
+  status?: LocationInsert["status"] | null;
+  relatedCharacterIds?: string[] | null;
+  tags?: string[] | null;
+};
 
 export interface LocationTreeNode {
   id: string;
   name: string;
-  type: LocationData["type"];
+  type: string;
   description: string;
   children: LocationTreeNode[];
 }
 
-// ── In-memory store ─────────────────────────────
-
-const locationStore = new Map<string, LocationData>();
-
-function seedDemoLocations(projectId: string) {
-  const now = new Date().toISOString();
-  const locs: LocationData[] = [
-    {
-      id: "loc-1", projectId, name: "天玄大陆", parentId: null,
-      type: "realm", description: "故事发生的主要大陆，灵气充沛",
-      attributes: { climate: "四季分明" }, createdAt: now, updatedAt: now,
-    },
-    {
-      id: "loc-2", projectId, name: "苍云山脉", parentId: "loc-1",
-      type: "region", description: "大陆中部的绵延山脉",
-      attributes: { elevation: "极高" }, createdAt: now, updatedAt: now,
-    },
-    {
-      id: "loc-3", projectId, name: "天剑宗", parentId: "loc-2",
-      type: "area", description: "主角所属门派，位于苍云山主峰",
-      attributes: { faction: "正道" }, createdAt: now, updatedAt: now,
-    },
-    {
-      id: "loc-4", projectId, name: "剑意殿", parentId: "loc-3",
-      type: "building", description: "宗门核心建筑，存放历代剑意传承",
-      attributes: {}, createdAt: now, updatedAt: now,
-    },
-    {
-      id: "loc-5", projectId, name: "藏经阁", parentId: "loc-3",
-      type: "building", description: "存放功法与秘术",
-      attributes: {}, createdAt: now, updatedAt: now,
-    },
-    {
-      id: "loc-6", projectId, name: "东海域", parentId: "loc-1",
-      type: "region", description: "大陆东部的广阔海域",
-      attributes: { terrain: "海洋" }, createdAt: now, updatedAt: now,
-    },
-    {
-      id: "loc-7", projectId, name: "龙渊城", parentId: "loc-6",
-      type: "city", description: "东海最大的港口城市",
-      attributes: { population: "百万" }, createdAt: now, updatedAt: now,
-    },
-    {
-      id: "loc-8", projectId, name: "幽冥深渊", parentId: "loc-1",
-      type: "region", description: "大陆南端的禁地，魔气弥漫",
-      attributes: { danger: "极高" }, createdAt: now, updatedAt: now,
-    },
-  ];
-
-  for (const loc of locs) {
-    locationStore.set(loc.id, loc);
-  }
-}
-
-function buildTree(locations: LocationData[]): LocationTreeNode[] {
+function buildTree(locations: LocationTreeSource[]): LocationTreeNode[] {
   const byId = new Map<string, LocationTreeNode>();
   const roots: LocationTreeNode[] = [];
 
@@ -94,8 +51,8 @@ function buildTree(locations: LocationData[]): LocationTreeNode[] {
     byId.set(loc.id, {
       id: loc.id,
       name: loc.name,
-      type: loc.type,
-      description: loc.description,
+      type: loc.type ?? "custom",
+      description: loc.description ?? "",
       children: [],
     });
   }
@@ -119,36 +76,93 @@ function buildTree(locations: LocationData[]): LocationTreeNode[] {
   return roots;
 }
 
+function serializeAttributes(row: LocationRow): Record<string, string> {
+  const attributes: Record<string, string> = {};
+
+  if (row.aliases && row.aliases.length > 0) attributes.aliases = JSON.stringify(row.aliases);
+  if (row.sensoryDetails) attributes.sensoryDetails = row.sensoryDetails;
+  if (row.layout) attributes.layout = row.layout;
+  if (row.significance) attributes.significance = row.significance;
+  if (row.firstAppearance !== null && row.firstAppearance !== undefined) {
+    attributes.firstAppearance = String(row.firstAppearance);
+  }
+  if (row.relatedCharacterIds && row.relatedCharacterIds.length > 0) {
+    attributes.relatedCharacterIds = JSON.stringify(row.relatedCharacterIds);
+  }
+  if (row.status) attributes.status = row.status;
+  if (row.tags && row.tags.length > 0) attributes.tags = JSON.stringify(row.tags);
+
+  return attributes;
+}
+
+function serializeLocation(row: LocationRow) {
+  return {
+    id: row.id,
+    projectId: row.projectId,
+    name: row.name,
+    parentId: row.parentId,
+    type: row.type ?? "custom",
+    description: row.description ?? "",
+    attributes: serializeAttributes(row),
+    createdAt: row.createdAt ? row.createdAt.toISOString() : new Date(0).toISOString(),
+    updatedAt: row.updatedAt ? row.updatedAt.toISOString() : new Date(0).toISOString(),
+  };
+}
+
+function collectDescendantIds(rows: LocationRow[], rootId: string): string[] {
+  const childrenByParent = new Map<string, string[]>();
+
+  for (const row of rows) {
+    if (!row.parentId) continue;
+    const current = childrenByParent.get(row.parentId);
+    if (current) current.push(row.id);
+    else childrenByParent.set(row.parentId, [row.id]);
+  }
+
+  const collected = new Set<string>([rootId]);
+  const stack = [rootId];
+
+  while (stack.length > 0) {
+    const current = stack.pop();
+    if (!current) continue;
+
+    const children = childrenByParent.get(current);
+    if (!children) continue;
+
+    for (const childId of children) {
+      if (collected.has(childId)) continue;
+      collected.add(childId);
+      stack.push(childId);
+    }
+  }
+
+  return Array.from(collected);
+}
+
 // ── Route factory ───────────────────────────────
 
 export function createLocationsRoute() {
   const route = new Hono();
 
   /** GET / — 层级树数据 */
-  route.get("/", (c) => {
+  route.get("/", async (c) => {
     const projectId = c.req.param("id");
     if (!projectId) return c.json({ error: "Missing project ID" }, 400);
 
-    const hasData = Array.from(locationStore.values()).some(
-      (l) => l.projectId === projectId,
-    );
-    if (!hasData) seedDemoLocations(projectId);
+    const db = getDb();
+    const rows = await db.select().from(locations).where(eq(locations.projectId, projectId));
 
-    const locations = Array.from(locationStore.values()).filter(
-      (l) => l.projectId === projectId,
-    );
-
-    const tree = buildTree(locations);
-    const flat = locations.map((l) => ({
-      id: l.id,
-      name: l.name,
-      parentId: l.parentId,
-      type: l.type,
-      description: l.description,
-      attributes: l.attributes,
+    const tree = buildTree(rows);
+    const flat = rows.map((row) => ({
+      id: row.id,
+      name: row.name,
+      parentId: row.parentId,
+      type: row.type ?? "custom",
+      description: row.description ?? "",
+      attributes: serializeAttributes(row),
     }));
 
-    return c.json({ tree, flat, total: locations.length });
+    return c.json({ tree, flat, total: rows.length });
   });
 
   /** POST / — 新增地点 */
@@ -156,76 +170,92 @@ export function createLocationsRoute() {
     const projectId = c.req.param("id");
     if (!projectId) return c.json({ error: "Missing project ID" }, 400);
 
-    const body = await c.req.json<{
-      name?: string;
-      parentId?: string | null;
-      type?: LocationData["type"];
-      description?: string;
-      attributes?: Record<string, string>;
-    }>();
-
+    const body = await c.req.json<LocationWriteInput>();
     if (!body.name) return c.json({ error: "name is required" }, 400);
 
-    const id = crypto.randomUUID();
-    const now = new Date().toISOString();
-    const location: LocationData = {
-      id,
-      projectId,
-      name: body.name,
-      parentId: body.parentId ?? null,
-      type: body.type ?? "custom",
-      description: body.description ?? "",
-      attributes: body.attributes ?? {},
-      createdAt: now,
-      updatedAt: now,
-    };
+    const db = getDb();
+    const [created] = await db
+      .insert(locations)
+      .values({
+        projectId,
+        name: body.name,
+        parentId: body.parentId ?? null,
+        type: body.type ?? "custom",
+        description: body.description ?? null,
+        aliases: body.aliases ?? null,
+        sensoryDetails: body.sensoryDetails ?? null,
+        layout: body.layout ?? null,
+        significance: body.significance ?? null,
+        firstAppearance: body.firstAppearance ?? null,
+        status: body.status ?? "active",
+        relatedCharacterIds: body.relatedCharacterIds ?? null,
+        tags: body.tags ?? null,
+      })
+      .returning();
 
-    locationStore.set(id, location);
-    log.info({ id, name: body.name }, "Location created");
+    log.info({ id: created?.id, name: body.name }, "Location created");
 
-    return c.json(location, 201);
+    return c.json(created ? serializeLocation(created) : null, 201);
   });
 
   /** PUT /:locId — 更新地点 */
   route.put("/:locId", async (c) => {
+    const projectId = c.req.param("id");
+    if (!projectId) return c.json({ error: "Missing project ID" }, 400);
     const locId = c.req.param("locId");
-    const existing = locationStore.get(locId);
+    const db = getDb();
+
+    const [existing] = await db
+      .select({ id: locations.id })
+      .from(locations)
+      .where(and(eq(locations.id, locId), eq(locations.projectId, projectId)))
+      .limit(1);
+
     if (!existing) return c.json({ error: "Location not found" }, 404);
 
-    const body = await c.req.json<Partial<LocationData>>();
-    const updated: LocationData = {
-      ...existing,
-      ...body,
-      id: existing.id,
-      projectId: existing.projectId,
-      createdAt: existing.createdAt,
-      updatedAt: new Date().toISOString(),
-    };
+    const body = await c.req.json<LocationWriteInput>();
 
-    locationStore.set(locId, updated);
-    log.info({ locId, name: updated.name }, "Location updated");
+    const [updated] = await db
+      .update(locations)
+      .set({
+        ...(body.name !== undefined && { name: body.name }),
+        ...(body.parentId !== undefined && { parentId: body.parentId }),
+        ...(body.type !== undefined && { type: body.type }),
+        ...(body.description !== undefined && { description: body.description }),
+        ...(body.aliases !== undefined && { aliases: body.aliases }),
+        ...(body.sensoryDetails !== undefined && { sensoryDetails: body.sensoryDetails }),
+        ...(body.layout !== undefined && { layout: body.layout }),
+        ...(body.significance !== undefined && { significance: body.significance }),
+        ...(body.firstAppearance !== undefined && { firstAppearance: body.firstAppearance }),
+        ...(body.status !== undefined && { status: body.status }),
+        ...(body.relatedCharacterIds !== undefined && { relatedCharacterIds: body.relatedCharacterIds }),
+        ...(body.tags !== undefined && { tags: body.tags }),
+        updatedAt: new Date(),
+      })
+      .where(and(eq(locations.id, locId), eq(locations.projectId, projectId)))
+      .returning();
 
-    return c.json(updated);
+    log.info({ locId, name: updated?.name }, "Location updated");
+
+    return c.json(updated ? serializeLocation(updated) : null);
   });
 
   /** DELETE /:locId — 删除地点 */
-  route.delete("/:locId", (c) => {
+  route.delete("/:locId", async (c) => {
+    const projectId = c.req.param("id");
+    if (!projectId) return c.json({ error: "Missing project ID" }, 400);
     const locId = c.req.param("locId");
-    if (!locationStore.has(locId)) {
-      return c.json({ error: "Location not found" }, 404);
-    }
+    const db = getDb();
 
-    // Also delete children recursively
-    const deleteRecursive = (parentId: string) => {
-      for (const [id, loc] of locationStore) {
-        if (loc.parentId === parentId) {
-          deleteRecursive(id);
-          locationStore.delete(id);
-        }
-      }
-    };
-    deleteRecursive(locId);
-    locationStore.delete(locId);
+    const rows = await db.select().from(locations).where(eq(locations.projectId, projectId));
+    const targetExists = rows.some((row) => row.id === locId);
+    if (!targetExists) return c.json({ error: "Location not found" }, 404);
+
+    const idsToDelete = collectDescendantIds(rows, locId);
+
+    await db
+      .delete(locations)
+      .where(and(eq(locations.projectId, projectId), inArray(locations.id, idsToDelete)));
 
     log.info({ locId }, "Location deleted");
     return c.json({ deleted: true });

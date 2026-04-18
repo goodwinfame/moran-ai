@@ -28,7 +28,7 @@ describe("project-store", () => {
         totalWords: 50000,
         chapterCount: 10,
         currentArc: 1,
-        status: "idle",
+        status: "planning",
       },
       {
         id: "p2",
@@ -37,7 +37,7 @@ describe("project-store", () => {
         totalWords: 120000,
         chapterCount: 25,
         currentArc: 2,
-        status: "writing",
+        status: "active",
       },
     ];
 
@@ -54,7 +54,7 @@ describe("project-store", () => {
       totalWords: 50000,
       chapterCount: 10,
       currentArc: 1,
-      status: "idle",
+      status: "planning",
     };
 
     useProjectStore.getState().setCurrentProject(project);
@@ -69,7 +69,7 @@ describe("project-store", () => {
       totalWords: 0,
       chapterCount: 0,
       currentArc: 0,
-      status: "idle",
+      status: "planning",
     };
 
     useProjectStore.getState().setCurrentProject(project);

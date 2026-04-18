@@ -7,7 +7,7 @@
   "types": "./dist/index.d.ts",
   "scripts": {
     "build": "tsc -b",
-    "dev": "bun --watch src/index.ts",
+    "dev": "bun --env-file=../../.env --watch src/index.ts",
     "start": "bun run dist/index.js",
     "typecheck": "tsc --noEmit",
     "test": "vitest run",
@@ -19,6 +19,7 @@
     "@moran/agents": "workspace:*",
     "@moran/core": "workspace:*",
     "@opencode-ai/sdk": "^1.4.0",
+    "drizzle-orm": "^0.44.7",
     "epub-gen-memory": "^1.1.2",
     "hono": "^4.7.0",
     "zod": "^3.24.0"

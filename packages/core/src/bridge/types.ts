@@ -62,10 +62,32 @@ export interface AgentResponse {
   agentId: AgentId;
 }
 
+/**
+ * BridgeTransport — 传输层抽象
+ *
+ * Core 包定义接口，Server 包提供基于 OpenCode SDK 的实现。
+ * 这样 Core 无需依赖 `@opencode-ai/sdk`。
+ */
+export interface BridgeTransport {
+  /** 创建 OpenCode Session，返回 sessionId */
+  createSession(title: string): Promise<string>;
+  /** 发送消息到 Session，返回完整响应 */
+  prompt(
+    sessionId: string,
+    message: string,
+  ): Promise<BridgeTransportResponse>;
+}
+
+/** Transport 层的响应结构 */
+export interface BridgeTransportResponse {
+  /** LLM 输出文本 */
+  content: string;
+  /** Token 使用量 */
+  usage: { inputTokens: number; outputTokens: number };
+}
+
 /** Bridge 配置 */
 export interface BridgeConfig {
-  /** OpenCode SDK server 端口 */
-  sdkPort: number;
   /** 是否自动创建 Session */
   autoCreateSession: boolean;
   /** Session 超时时间（毫秒） */
@@ -73,7 +95,6 @@ export interface BridgeConfig {
 }
 
 export const DEFAULT_BRIDGE_CONFIG: BridgeConfig = {
-  sdkPort: 3100,
   autoCreateSession: true,
   sessionTimeout: 3600_000, // 1 hour
 };

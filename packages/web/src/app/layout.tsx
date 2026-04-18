@@ -1,7 +1,19 @@
 import type { Metadata } from "next";
+import { Manrope, Noto_Serif_SC } from "next/font/google";
 import "./globals.css";
-import { AppSidebar } from "@/components/layout/app-sidebar";
-import { StatusBar } from "@/components/layout/status-bar";
+
+const manrope = Manrope({
+  subsets: ["latin"],
+  variable: "--font-sans",
+  display: "swap",
+});
+
+const notoSerifSC = Noto_Serif_SC({
+  subsets: ["latin"],
+  weight: ["600", "700"],
+  variable: "--font-serif",
+  display: "swap",
+});
 
 export const metadata: Metadata = {
   title: "墨染 MoRan",
@@ -10,13 +22,15 @@ export const metadata: Metadata = {
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
-    <html lang="zh-CN">
-      <body className="flex h-screen overflow-hidden">
-        <AppSidebar />
-        <div className="flex flex-1 flex-col overflow-hidden">
-          <main className="flex-1 overflow-auto">{children}</main>
-          <StatusBar />
-        </div>
+    <html lang="zh-CN" className={`${manrope.variable} ${notoSerifSC.variable}`}>
+      <head>
+        <link
+          href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:opsz,wght,FILL,GRAD@20..48,100..700,0..1,-50..200&display=swap"
+          rel="stylesheet"
+        />
+      </head>
+      <body className="font-sans">
+        {children}
       </body>
     </html>
   );

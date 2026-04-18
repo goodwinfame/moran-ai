@@ -1,26 +1,16 @@
-/**
+﻿/**
  * /api/projects/:id/versions — 多版本择优管理
- *
- * GET    /chapters/:num           — 获取章节的版本列表
- * GET    /chapters/:num/:vIdx     — 获取某个具体版本详情
- * POST   /chapters/:num/select    — 手动选择版本
- * GET    /config                  — 获取多版本配置
- * PUT    /config                  — 更新多版本配置
- *
- * M4.1: 多版本择优数据管理。使用内存存储，后续接入 PostgreSQL。
  */
 
 import { Hono } from "hono";
+import { eq, and, sql } from "drizzle-orm";
+import { getDb } from "@moran/core/db";
+import { projectDocuments } from "@moran/core/db/schema";
 import { createLogger } from "@moran/core/logger";
-import type {
-  SelectionResult,
-} from "@moran/core";
+import type { SelectionResult } from "@moran/core";
 
 const log = createLogger("versions-routes");
 
-// ── 内存存储 ──────────────────────────────────────────
-
-/** 版本数据（简化版，前端展示用） */
 interface VersionData {
   versionIndex: number;
   content: string;
@@ -32,7 +22,6 @@ interface VersionData {
   createdAt: string;
 }
 
-/** 章节版本集 */
 interface ChapterVersionSet {
   projectId: string;
   chapterNumber: number;
@@ -44,21 +33,12 @@ interface ChapterVersionSet {
   createdAt: string;
 }
 
-/** 多版本配置 */
 interface VersionConfig {
   versionCount: number;
   temperaturePerturbation: number;
   parallel: boolean;
   skipFullReview: boolean;
   enabled: boolean;
-}
-
-// key: `${projectId}:${chapterNumber}`
-const versionStore = new Map<string, ChapterVersionSet>();
-const configStore = new Map<string, VersionConfig>();
-
-function versionKey(projectId: string, num: number) {
-  return `${projectId}:${num}`;
 }
 
 const DEFAULT_CONFIG: VersionConfig = {
@@ -69,12 +49,62 @@ const DEFAULT_CONFIG: VersionConfig = {
   enabled: false,
 };
 
-/** 从 SelectionResult 转换为存储格式 */
-function fromSelectionResult(
-  projectId: string,
-  chapterNumber: number,
-  result: SelectionResult,
-): ChapterVersionSet {
+type VersionSetRow = { id: string; content: string };
+type VersionConfigRow = { id: string; content: string };
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === "object" && value !== null;
+}
+
+function parseVersionData(value: unknown): VersionData | null {
+  if (!isRecord(value)) return null;
+  const { versionIndex, content, wordCount, temperature, score, passed, isSelected, createdAt } = value;
+  if (
+    typeof versionIndex !== "number" || typeof content !== "string" || typeof wordCount !== "number" ||
+    typeof temperature !== "number" || typeof score !== "number" || typeof passed !== "boolean" ||
+    typeof isSelected !== "boolean" || typeof createdAt !== "string"
+  ) return null;
+  return { versionIndex, content, wordCount, temperature, score, passed, isSelected, createdAt };
+}
+
+function parseVersionSetContent(content: string): ChapterVersionSet | null {
+  try {
+    const parsed: unknown = JSON.parse(content);
+    if (!isRecord(parsed)) return null;
+    const { projectId, chapterNumber, hasPassingVersion, totalVersions, passingVersions, selectedVersion, versions, createdAt } = parsed;
+    if (
+      typeof projectId !== "string" || typeof chapterNumber !== "number" || typeof hasPassingVersion !== "boolean" ||
+      typeof totalVersions !== "number" || typeof passingVersions !== "number" || typeof selectedVersion !== "number" ||
+      !Array.isArray(versions) || typeof createdAt !== "string"
+    ) return null;
+    const parsedVersions: VersionData[] = [];
+    for (const version of versions) {
+      const item = parseVersionData(version);
+      if (!item) return null;
+      parsedVersions.push(item);
+    }
+    return { projectId, chapterNumber, hasPassingVersion, totalVersions, passingVersions, selectedVersion, versions: parsedVersions, createdAt };
+  } catch {
+    return null;
+  }
+}
+
+function parseVersionConfigContent(content: string): VersionConfig | null {
+  try {
+    const parsed: unknown = JSON.parse(content);
+    if (!isRecord(parsed)) return null;
+    const { versionCount, temperaturePerturbation, parallel, skipFullReview, enabled } = parsed;
+    if (
+      typeof versionCount !== "number" || typeof temperaturePerturbation !== "number" || typeof parallel !== "boolean" ||
+      typeof skipFullReview !== "boolean" || typeof enabled !== "boolean"
+    ) return null;
+    return { versionCount, temperaturePerturbation, parallel, skipFullReview, enabled };
+  } catch {
+    return null;
+  }
+}
+
+function fromSelectionResult(projectId: string, chapterNumber: number, result: SelectionResult): ChapterVersionSet {
   const now = new Date().toISOString();
   return {
     projectId,
@@ -97,227 +127,141 @@ function fromSelectionResult(
   };
 }
 
-/**
- * 注册版本数据（供 ChapterPipeline 调用）
- */
-export function registerVersionResult(
+function toVersionSetMetadata(chapterNumber: number) {
+  return { chapterNumber, subType: "versions" };
+}
+
+function toVersionConfigMetadata() {
+  return { subType: "version-config" };
+}
+
+async function getVersionSetRow(projectId: string, chapterNumber: number): Promise<VersionSetRow | null> {
+  const db = getDb();
+  const [row] = await db.select({ id: projectDocuments.id, content: projectDocuments.content }).from(projectDocuments).where(
+    and(
+      eq(projectDocuments.projectId, projectId),
+      eq(projectDocuments.category, "guide"),
+      sql`${projectDocuments.metadata}->>'subType' = 'versions'`,
+      sql`${projectDocuments.metadata}->>'chapterNumber' = ${String(chapterNumber)}`,
+    ),
+  ).limit(1);
+  return row ?? null;
+}
+
+async function getVersionConfigRow(projectId: string): Promise<VersionConfigRow | null> {
+  const db = getDb();
+  const [row] = await db.select({ id: projectDocuments.id, content: projectDocuments.content }).from(projectDocuments).where(
+    and(
+      eq(projectDocuments.projectId, projectId),
+      eq(projectDocuments.category, "guide"),
+      sql`${projectDocuments.metadata}->>'subType' = 'version-config'`,
+    ),
+  ).limit(1);
+  return row ?? null;
+}
+
+async function upsertVersionDocument(
   projectId: string,
-  chapterNumber: number,
-  result: SelectionResult,
-): void {
-  const key = versionKey(projectId, chapterNumber);
-  versionStore.set(key, fromSelectionResult(projectId, chapterNumber, result));
-  log.info(
-    { projectId, chapterNumber, totalVersions: result.totalVersions },
-    "Version result registered",
-  );
+  title: string,
+  content: string,
+  metadata: Record<string, unknown>,
+  existingId?: string,
+): Promise<string | null> {
+  const db = getDb();
+  const values = { projectId, category: "guide" as const, title, content, metadata };
+  if (existingId) {
+    const [updated] = await db.update(projectDocuments).set(values).where(eq(projectDocuments.id, existingId)).returning({ id: projectDocuments.id });
+    if (!updated) return null;
+    return updated.id;
+  }
+  const [created] = await db.insert(projectDocuments).values(values).returning({ id: projectDocuments.id });
+  if (!created) return null;
+  return created.id;
 }
 
-// ── 示例数据 ──────────────────────────────────────────
-
-function seedDemoVersions(projectId: string): void {
-  const key = versionKey(projectId, 1);
-  if (versionStore.has(key)) return;
-
-  const now = new Date().toISOString();
-  versionStore.set(key, {
-    projectId,
-    chapterNumber: 1,
-    hasPassingVersion: true,
-    totalVersions: 3,
-    passingVersions: 2,
-    selectedVersion: 2,
-    versions: [
-      {
-        versionIndex: 1,
-        content: "\u7b2c\u4e00\u7248\u672c\u7684\u5185\u5bb9\u2026\u2026\u7b97\u4e86\u8fd9\u4e2a\u7248\u672c\u5199\u5f97\u4e00\u822c\u3002",
-        wordCount: 2800,
-        temperature: 0.72,
-        score: 68,
-        passed: false,
-        isSelected: false,
-        createdAt: now,
-      },
-      {
-        versionIndex: 2,
-        content: "\u7b2c\u4e8c\u7248\u672c\u7684\u5185\u5bb9\u2026\u2026\u8fd9\u4e2a\u7248\u672c\u5199\u5f97\u6700\u597d\uff0c\u88ab\u9009\u4e2d\u4e86\u3002",
-        wordCount: 3200,
-        temperature: 0.80,
-        score: 85,
-        passed: true,
-        isSelected: true,
-        createdAt: now,
-      },
-      {
-        versionIndex: 3,
-        content: "\u7b2c\u4e09\u7248\u672c\u7684\u5185\u5bb9\u2026\u2026\u8fd9\u4e2a\u7248\u672c\u4e5f\u8fd8\u884c\u3002",
-        wordCount: 3000,
-        temperature: 0.88,
-        score: 76,
-        passed: true,
-        isSelected: false,
-        createdAt: now,
-      },
-    ],
-    createdAt: now,
-  });
+export async function registerVersionResult(projectId: string, chapterNumber: number, result: SelectionResult): Promise<void> {
+  const set = fromSelectionResult(projectId, chapterNumber, result);
+  const savedId = await upsertVersionDocument(projectId, `versions:ch${chapterNumber}`, JSON.stringify(set), toVersionSetMetadata(chapterNumber));
+  if (!savedId) throw new Error("Failed to save version result");
+  log.info({ projectId, chapterNumber, totalVersions: result.totalVersions }, "Version result registered");
 }
-
-// ── 路由 ──────────────────────────────────────────────
 
 export function createVersionsRoute() {
   const route = new Hono();
 
-  /** GET /chapters/:num — 获取章节版本列表 */
-  route.get("/chapters/:num", (c) => {
+  route.get("/chapters/:num", async (c) => {
     const projectId = c.req.param("id");
     const num = parseInt(c.req.param("num"), 10);
-
-    if (!projectId || isNaN(num)) {
-      return c.json({ error: "Invalid parameters" }, 400);
-    }
-
-    seedDemoVersions(projectId);
-
-    const key = versionKey(projectId, num);
-    const versionSet = versionStore.get(key);
-
-    if (!versionSet) {
-      return c.json({ error: "No versions found for this chapter" }, 404);
-    }
-
-    // 返回不含正文的摘要列表
-    const summaries = versionSet.versions.map(({ content: _, ...rest }) => rest);
-
-    return c.json({
-      chapterNumber: versionSet.chapterNumber,
-      hasPassingVersion: versionSet.hasPassingVersion,
-      totalVersions: versionSet.totalVersions,
-      passingVersions: versionSet.passingVersions,
-      selectedVersion: versionSet.selectedVersion,
-      versions: summaries,
-    });
+    if (!projectId || Number.isNaN(num)) return c.json({ error: "Invalid parameters" }, 400);
+    const row = await getVersionSetRow(projectId, num);
+    if (!row) return c.json({ error: "No versions found for this chapter" }, 404);
+    const versionSet = parseVersionSetContent(row.content);
+    if (!versionSet) return c.json({ error: "Version data is corrupted" }, 500);
+    const versions = versionSet.versions.map(({ content: _content, ...rest }) => rest);
+    return c.json({ chapterNumber: versionSet.chapterNumber, hasPassingVersion: versionSet.hasPassingVersion, totalVersions: versionSet.totalVersions, passingVersions: versionSet.passingVersions, selectedVersion: versionSet.selectedVersion, versions });
   });
 
-  /** GET /chapters/:num/:vIdx — 获取版本详情（含正文） */
-  route.get("/chapters/:num/:vIdx", (c) => {
+  route.get("/chapters/:num/:vIdx", async (c) => {
     const projectId = c.req.param("id");
     const num = parseInt(c.req.param("num"), 10);
     const vIdx = parseInt(c.req.param("vIdx"), 10);
-
-    if (!projectId || isNaN(num) || isNaN(vIdx)) {
-      return c.json({ error: "Invalid parameters" }, 400);
-    }
-
-    seedDemoVersions(projectId);
-
-    const key = versionKey(projectId, num);
-    const versionSet = versionStore.get(key);
-    if (!versionSet) {
-      return c.json({ error: "No versions found for this chapter" }, 404);
-    }
-
+    if (!projectId || Number.isNaN(num) || Number.isNaN(vIdx)) return c.json({ error: "Invalid parameters" }, 400);
+    const row = await getVersionSetRow(projectId, num);
+    if (!row) return c.json({ error: "No versions found for this chapter" }, 404);
+    const versionSet = parseVersionSetContent(row.content);
+    if (!versionSet) return c.json({ error: "Version data is corrupted" }, 500);
     const version = versionSet.versions.find((v) => v.versionIndex === vIdx);
-    if (!version) {
-      return c.json({ error: `Version ${vIdx} not found` }, 404);
-    }
-
+    if (!version) return c.json({ error: `Version ${vIdx} not found` }, 404);
     return c.json(version);
   });
 
-  /** POST /chapters/:num/select — 手动选择版本 */
   route.post("/chapters/:num/select", async (c) => {
     const projectId = c.req.param("id");
     const num = parseInt(c.req.param("num"), 10);
-
-    if (!projectId || isNaN(num)) {
-      return c.json({ error: "Invalid parameters" }, 400);
-    }
-
+    if (!projectId || Number.isNaN(num)) return c.json({ error: "Invalid parameters" }, 400);
     const body = await c.req.json<{ versionIndex: number }>().catch(() => null);
-    if (!body || typeof body.versionIndex !== "number") {
-      return c.json({ error: "Missing or invalid versionIndex" }, 400);
-    }
-
-    seedDemoVersions(projectId);
-
-    const key = versionKey(projectId, num);
-    const versionSet = versionStore.get(key);
-    if (!versionSet) {
-      return c.json({ error: "No versions found for this chapter" }, 404);
-    }
-
-    const targetVersion = versionSet.versions.find(
-      (v) => v.versionIndex === body.versionIndex,
-    );
-    if (!targetVersion) {
-      return c.json({ error: `Version ${body.versionIndex} not found` }, 404);
-    }
-
-    // 更新选中状态
-    for (const v of versionSet.versions) {
-      v.isSelected = v.versionIndex === body.versionIndex;
-    }
-    versionSet.selectedVersion = body.versionIndex;
-
-    log.info(
-      { projectId, chapterNumber: num, selectedVersion: body.versionIndex },
-      "Version manually selected",
-    );
-
-    return c.json({
-      status: "selected",
-      chapterNumber: num,
-      selectedVersion: body.versionIndex,
-      wordCount: targetVersion.wordCount,
-      score: targetVersion.score,
-    });
+    if (!body || typeof body.versionIndex !== "number") return c.json({ error: "Missing or invalid versionIndex" }, 400);
+    const row = await getVersionSetRow(projectId, num);
+    if (!row) return c.json({ error: "No versions found for this chapter" }, 404);
+    const versionSet = parseVersionSetContent(row.content);
+    if (!versionSet) return c.json({ error: "Version data is corrupted" }, 500);
+    const targetVersion = versionSet.versions.find((v) => v.versionIndex === body.versionIndex);
+    if (!targetVersion) return c.json({ error: `Version ${body.versionIndex} not found` }, 404);
+    const updatedSet: ChapterVersionSet = { ...versionSet, selectedVersion: body.versionIndex, versions: versionSet.versions.map((version) => ({ ...version, isSelected: version.versionIndex === body.versionIndex })) };
+    const savedId = await upsertVersionDocument(projectId, `versions:ch${num}`, JSON.stringify(updatedSet), toVersionSetMetadata(num), row.id);
+    if (!savedId) return c.json({ error: "Failed to update version selection" }, 500);
+    log.info({ projectId, chapterNumber: num, selectedVersion: body.versionIndex }, "Version manually selected");
+    return c.json({ status: "selected", chapterNumber: num, selectedVersion: body.versionIndex, wordCount: targetVersion.wordCount, score: targetVersion.score });
   });
 
-  /** GET /config — 获取多版本配置 */
-  route.get("/config", (c) => {
+  route.get("/config", async (c) => {
     const projectId = c.req.param("id");
-    if (!projectId) {
-      return c.json({ error: "Missing project ID" }, 400);
-    }
-
-    const config = configStore.get(projectId) ?? { ...DEFAULT_CONFIG };
+    if (!projectId) return c.json({ error: "Missing project ID" }, 400);
+    const row = await getVersionConfigRow(projectId);
+    if (!row) return c.json({ ...DEFAULT_CONFIG });
+    const config = parseVersionConfigContent(row.content);
+    if (!config) return c.json({ error: "Version config data is corrupted" }, 500);
     return c.json(config);
   });
 
-  /** PUT /config — 更新多版本配置 */
   route.put("/config", async (c) => {
     const projectId = c.req.param("id");
-    if (!projectId) {
-      return c.json({ error: "Missing project ID" }, 400);
-    }
-
+    if (!projectId) return c.json({ error: "Missing project ID" }, 400);
     const body = await c.req.json<Partial<VersionConfig>>().catch(() => null);
-    if (!body || typeof body !== "object") {
-      return c.json({ error: "Invalid request body" }, 400);
-    }
-
-    const current = configStore.get(projectId) ?? { ...DEFAULT_CONFIG };
-
-    // 合并更新
+    if (!body || typeof body !== "object") return c.json({ error: "Invalid request body" }, 400);
+    const currentRow = await getVersionConfigRow(projectId);
+    const currentConfig = currentRow ? parseVersionConfigContent(currentRow.content) : null;
+    const baseConfig = currentConfig ?? DEFAULT_CONFIG;
     const updated: VersionConfig = {
-      versionCount:
-        typeof body.versionCount === "number"
-          ? Math.max(2, Math.min(5, body.versionCount))
-          : current.versionCount,
-      temperaturePerturbation:
-        typeof body.temperaturePerturbation === "number"
-          ? Math.max(0, Math.min(0.3, body.temperaturePerturbation))
-          : current.temperaturePerturbation,
-      parallel: typeof body.parallel === "boolean" ? body.parallel : current.parallel,
-      skipFullReview:
-        typeof body.skipFullReview === "boolean" ? body.skipFullReview : current.skipFullReview,
-      enabled: typeof body.enabled === "boolean" ? body.enabled : current.enabled,
+      versionCount: typeof body.versionCount === "number" ? Math.max(2, Math.min(5, body.versionCount)) : baseConfig.versionCount,
+      temperaturePerturbation: typeof body.temperaturePerturbation === "number" ? Math.max(0, Math.min(0.3, body.temperaturePerturbation)) : baseConfig.temperaturePerturbation,
+      parallel: typeof body.parallel === "boolean" ? body.parallel : baseConfig.parallel,
+      skipFullReview: typeof body.skipFullReview === "boolean" ? body.skipFullReview : baseConfig.skipFullReview,
+      enabled: typeof body.enabled === "boolean" ? body.enabled : baseConfig.enabled,
     };
-
-    configStore.set(projectId, updated);
+    const savedId = await upsertVersionDocument(projectId, "version-config", JSON.stringify(updated), toVersionConfigMetadata(), currentRow?.id);
+    if (!savedId) return c.json({ error: "Failed to update version config" }, 500);
     log.info({ projectId, config: updated }, "Version config updated");
-
     return c.json(updated);
   });
 
