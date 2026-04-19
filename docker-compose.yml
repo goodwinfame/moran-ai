@@ -21,7 +21,7 @@ services:
   moran-server:
     build:
       context: .
-      dockerfile: packages/server/Dockerfile
+      dockerfile: packages/api-server/Dockerfile
     restart: unless-stopped
     depends_on:
       postgres:

@@ -1,4 +1,4 @@
-# AGENTS.md — packages/server
+# AGENTS.md — packages/api-server
 
 > Hono 后端包。所有业务 API 在这里，不在 Next.js。
 
@@ -35,7 +35,7 @@ V2 路由将按 SDD Spec 分批添加。
 ## 测试规范
 
 - 使用 `createApp()` + `app.request()` 发请求，不启动真实 HTTP
-- 运行：`pnpm --filter @moran/server test`
+- 运行：`pnpm --filter @moran/api-server test`
 
 ## 禁止事项
 

@@ -27,11 +27,11 @@ export default defineWorkspace([
       },
     },
   },
-  // @moran/server — API integration tests
+  // @moran/api-server — API integration tests
   {
     test: {
-      name: "server-integration",
-      root: "./packages/server",
+      name: "api-server-integration",
+      root: "./packages/api-server",
       include: ["src/**/__tests__/**/*.test.ts"],
       environment: "node",
       setupFiles: ["./test/setup.ts"],

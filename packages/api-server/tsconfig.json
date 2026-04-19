@@ -6,9 +6,7 @@
     "tsBuildInfoFile": "./tsconfig.tsbuildinfo",
     "paths": {
       "@moran/core": ["../core/src"],
-      "@moran/core/*": ["../core/src/*"],
-      "@moran/agents": ["../agents"],
-      "@moran/agents/*": ["../agents/*"]
+      "@moran/core/*": ["../core/src/*"]
     }
   },
   "include": ["src/**/*.ts"],
