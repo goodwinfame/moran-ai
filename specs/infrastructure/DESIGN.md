@@ -24,7 +24,7 @@ V1 基础设施已经就绪，V2 沿用以下组件：
 当前使用 `vitest.workspace.ts`，vitest v3.2 已标记为 deprecated。
 需迁移到根 `vitest.config.ts` 的 `test.projects` 字段。
 
-### 2.2 server package.json 中的 agents 依赖
+### 2.2 api-server package.json 中的 agents 依赖
 
 已在本次清理中移除 `@moran/agents` 和 `epub-gen-memory`。
 
@@ -52,8 +52,8 @@ export default defineConfig({
       },
       {
         test: {
-          name: 'server-unit',
-          root: './packages/server',
+          name: 'api-server-unit',
+          root: './packages/api-server',
           include: ['src/**/__tests__/**/*.test.ts'],
         },
       },

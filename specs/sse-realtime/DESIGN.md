@@ -27,7 +27,7 @@ OpenCode 事件流 → EventTransformer → SSEBroadcaster → Hono SSE 端点 �
 将 OpenCode 原生事件转换为前端 SSE 事件格式：
 
 ```typescript
-// packages/server/src/sse/transformer.ts
+// packages/api-server/src/sse/transformer.ts
 
 /** 前端接收的统一事件格式 */
 interface SSEEvent {
@@ -69,7 +69,7 @@ export class EventTransformer {
 管理每个 session 的 SSE 连接和事件缓冲：
 
 ```typescript
-// packages/server/src/sse/broadcaster.ts
+// packages/api-server/src/sse/broadcaster.ts
 
 interface SSEConnection {
   sessionId: string;
@@ -113,7 +113,7 @@ const buffer = new EventBuffer({ maxSize: 1000, maxAge: 5 * 60 * 1000 });
 ### 2.5 Hono SSE 端点实现
 
 ```typescript
-// packages/server/src/routes/chat.ts（SSE 端点部分）
+// packages/api-server/src/routes/chat.ts（SSE 端点部分）
 import { streamSSE } from "hono/streaming";
 
 routes.get("/events", async (c) => {
@@ -284,16 +284,19 @@ const TOOL_TAB_MAP: Record<string, string> = {
   // 脑暴 Tab
   brainstorm_create: "brainstorm",
   brainstorm_update: "brainstorm",
+  brainstorm_patch: "brainstorm",
 
   // 设定 Tab（world 域统一，子类型由 type 参数区分）
   world_create: "settings",
   world_update: "settings",
   world_delete: "settings",
+  world_patch: "settings",
 
   // 角色 Tab
   character_create: "characters",
   character_update: "characters",
   character_delete: "characters",
+  character_patch: "characters",
   character_state_create: "characters",
   relationship_create: "characters",
   relationship_update: "characters",
@@ -301,11 +304,13 @@ const TOOL_TAB_MAP: Record<string, string> = {
   // 大纲 Tab（子类型由 type 参数区分）
   outline_create: "outline",
   outline_update: "outline",
+  outline_patch: "outline",
 
   // 章节 Tab
   chapter_create: "chapters",
   chapter_update: "chapters",
   chapter_archive: "chapters",
+  chapter_patch: "chapters",
   style_create: "chapters",
   style_update: "chapters",
   summary_create: "chapters",
@@ -320,6 +325,7 @@ const TOOL_TAB_MAP: Record<string, string> = {
   knowledge_create: "knowledge",
   knowledge_update: "knowledge",
   knowledge_delete: "knowledge",
+  knowledge_patch: "knowledge",
   lesson_create: "knowledge",
   lesson_update: "knowledge",
   thread_create: "knowledge",

@@ -8,7 +8,7 @@
 | 组件 | 状态 | V2 改动 |
 |------|------|---------|
 | `OpenCodeSessionManager` | ✅ 可用 | 增强：持久化 session 映射到 DB |
-| MCP Server | ❌ 不存在 | 全新构建：47 个工具 + 门禁 |
+| MCP Server | ❌ 不存在 | 全新构建：54 个工具 + 门禁 |
 | Agent 配置 | ❌ 不存在 | 全新构建：10 Agent YAML 配置 |
 | Docker 容器 | ✅ 可用 | 挂载 MCP Server 代码 |
 
@@ -74,13 +74,13 @@ packages/mcp-server/
 │   ├── tools/
 │   │   ├── index.ts          ← 工具统一注册
 │   │   ├── project.ts        ← project_read, project_update, gate_check
-│   │   ├── brainstorm.ts     ← brainstorm_create/read/update
-│   │   ├── world.ts          ← world_* (5 工具)
-│   │   ├── character.ts      ← character_*, character_state_*, relationship_* (9 工具)
-│   │   ├── writing.ts        ← style_*, outline_*, chapter_* (11 工具)
+│   │   ├── brainstorm.ts     ← brainstorm_create/read/update/patch
+│   │   ├── world.ts          ← world_* (6 工具)
+│   │   ├── character.ts      ← character_*, character_state_*, relationship_* (10 工具)
+│   │   ├── writing.ts        ← style_*, outline_*, chapter_* (13 工具)
 │   │   ├── review.ts         ← review_execute (1 工具)
 │   │   ├── archive.ts        ← summary_*, thread_*, timeline_* (7 工具)
-│   │   ├── knowledge.ts      ← knowledge_*, lesson_* (7 工具)
+│   │   ├── knowledge.ts      ← knowledge_*, lesson_* (8 工具)
 │   │   └── analysis.ts       ← analysis_execute/read (2 工具)
 │   └── types.ts              ← MCPToolResult 等类型
 └── __tests__/
@@ -296,6 +296,7 @@ tools:
   - brainstorm_create
   - brainstorm_read
   - brainstorm_update
+  - brainstorm_patch
 ```
 
 #### 2.4.3 Docker Volume 挂载
@@ -322,7 +323,7 @@ opencode:
 
 ## 4. 风险与注意事项
 
-- **MCP Server 是最大模块**：47 个工具 + 门禁逻辑，占 V2 工作量 ~35%
+- **MCP Server 是最大模块**：54 个工具 + 门禁逻辑，占 V2 工作量 ~35%
 - **OpenCode SDK API 可能变化**：需要查阅最新文档确认 session.prompt / session.messages 等 API
 - **Agent system prompt 质量**：直接影响 Agent 行为，需要反复调试
 - **门禁全部基于 DB 查询**：如果查询复杂度高，可能影响 MCP 工具响应速度

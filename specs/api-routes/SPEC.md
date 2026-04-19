@@ -7,7 +7,7 @@
 ## 1. 概述
 
 Hono 后端的 RESTful API 路由层。分为三大类：Chat API（对话通道）、Panel API（面板数据）、User API（用户信息）。
-所有 API 在 `packages/server` 中实现，前缀 `/api`，通过 Next.js rewrite 代理实现同源访问。
+所有 API 在 `packages/api-server` 中实现，前缀 `/api`，通过 Next.js rewrite 代理实现同源访问。
 
 技术栈：Hono + TypeScript，测试用 `createApp()` + `app.request()`，不启动真实 HTTP。
 
@@ -136,7 +136,7 @@ Hono 后端的 RESTful API 路由层。分为三大类：Chat API（对话通道
 ### 2.6 路由组织
 
 ```
-packages/server/src/routes/
+packages/api-server/src/routes/
   chat.ts       — Chat API (3 路由)
   projects.ts   — 项目 CRUD (5 路由)
   panel/
@@ -162,7 +162,7 @@ packages/server/src/routes/
 - [ ] 统一响应格式 `{ ok, data?, error? }` 在所有端点遵守
 - [ ] 错误中间件捕获未处理异常，返回 500 + 标准格式
 - [ ] 所有测试使用 `createApp()` + `app.request()`，不启动真实 HTTP
-- [ ] `pnpm typecheck` 通过（server 包零错误）
+- [ ] `pnpm typecheck` 通过（api-server 包零错误）
 
 ## 4. 依赖
 

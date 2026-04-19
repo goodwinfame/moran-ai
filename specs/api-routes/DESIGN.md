@@ -5,7 +5,7 @@
 
 ## 1. 当前状态
 
-V2 清理后，`packages/server/src/` 只剩最小骨架：
+V2 清理后，`packages/api-server/src/` 只剩最小骨架：
 
 | 文件 | 状态 | 说明 |
 |------|------|------|
@@ -20,7 +20,7 @@ V2 清理后，`packages/server/src/` 只剩最小骨架：
 ### 2.1 路由文件组织
 
 ```
-packages/server/src/routes/
+packages/api-server/src/routes/
 ├── chat.ts               ← Chat API（3 路由）
 ├── projects.ts           ← 项目 CRUD（5 路由）
 ├── user.ts               ← User API（3 路由）
@@ -81,7 +81,7 @@ app.route("/api/projects/:id", createPanelRoutes());
 ### 2.4 统一响应工具
 
 ```typescript
-// packages/server/src/utils/response.ts
+// packages/api-server/src/utils/response.ts
 import type { Context } from "hono";
 
 export function ok<T>(c: Context, data: T, status = 200) {
@@ -104,7 +104,7 @@ export function paginated<T>(
 ### 2.5 userId 获取中间件
 
 ```typescript
-// packages/server/src/middleware/user-id.ts
+// packages/api-server/src/middleware/user-id.ts
 import type { Context, Next } from "hono";
 
 /**
@@ -140,19 +140,17 @@ routes.post("/", zValidator("json", createProjectSchema), async (c) => {
 
 ### 2.7 DB 查询层
 
-路由 handler 直接使用 Drizzle ORM 查询，不封装额外 service 层（保持 V2 简洁原则）：
+路由 handler 通过 `@moran/core/services` Service 层访问数据，不直接操作 Drizzle ORM：
 
 ```typescript
-import { getDb } from "@moran/core/db";
-import { projects } from "@moran/core/db/schema";
-import { eq } from "drizzle-orm";
+import { projectService } from "@moran/core/services";
 
 routes.get("/:id", async (c) => {
-  const db = getDb();
   const id = c.req.param("id");
-  const project = await db.select().from(projects).where(eq(projects.id, id)).limit(1);
-  if (!project.length) return fail(c, "NOT_FOUND", "Project not found", 404);
-  return ok(c, project[0]);
+  const userId = c.get("userId");
+  const result = await projectService.getById(id, userId);
+  if (!result.ok) return fail(c, result.error.code, result.error.message, 404);
+  return ok(c, result.data);
 });
 ```
 
@@ -208,8 +206,8 @@ DB 操作需要 mock 或使用测试数据库。优先使用 `vitest.mock()` moc
 
 | 包 | 用途 | 安装位置 |
 |----|------|---------|
-| `zod` | 请求校验 | server |
-| `@hono/zod-validator` | Hono + Zod 集成 | server |
+| `zod` | 请求校验 | api-server |
+| `@hono/zod-validator` | Hono + Zod 集成 | api-server |
 
 ## 3. 不需要改动的部分
 

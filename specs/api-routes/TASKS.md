@@ -5,7 +5,7 @@
 ## 任务列表
 
 ### T1: 创建路由基础设施
-- **输入**：`packages/server/src/`
+- **输入**：`packages/api-server/src/`
 - **输出**：
   - `routes/` 目录结构
   - `utils/response.ts`（ok / fail / paginated 工具）
@@ -14,7 +14,7 @@
 - **验收**：`pnpm typecheck` 通过
 
 ### T2: 安装 Zod 校验依赖
-- **输入**：`packages/server/package.json`
+- **输入**：`packages/api-server/package.json`
 - **输出**：`zod` + `@hono/zod-validator` 已安装
 - **验收**：`import { z } from "zod"` 不报错
 

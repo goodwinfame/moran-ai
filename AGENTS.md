@@ -47,6 +47,10 @@ specs/                          # SDD 规范目录
     SPEC.md / DESIGN.md / TASKS.md
   agents/                       # Agent 系统规范
     SPEC.md / DESIGN.md / TASKS.md
+  auth/                         # 认证系统规范
+    SPEC.md / DESIGN.md / TASKS.md
+  mcp-tools/                    # MCP 工具规范
+    SPEC.md / DESIGN.md / TASKS.md
   ...
 ```
 
@@ -64,7 +68,7 @@ specs/                          # SDD 规范目录
 ```
 用户浏览器
   └── Next.js (web, :3000)          页面渲染 / 静态资源 / Auth 中间件
-        └── Hono (server, :3200)    所有业务 API + SSE 推送
+        └── Hono (api-server, :3200)  所有业务 API + SSE 推送
               └── OpenCode serve (:4096)  AI 对话引擎（Docker）
                     └── LLM Provider (云端)
 ```
@@ -73,9 +77,10 @@ specs/                          # SDD 规范目录
 
 ```
 packages/
-  web/      Next.js 前端（2 个页面 + 聊天/面板组件 + Zustand store）
-  server/   Hono 后端（业务 API + OpenCode 集成 + SSE 推送）
-  core/     共享库（DB schema, 类型定义, 工具函数）
+  web/        Next.js 前端（2 个页面 + 聊天/面板组件 + Zustand store）
+  api-server/ Hono 后端（业务 API + OpenCode 集成 + SSE 推送）
+  core/       共享库（DB schema, 类型定义, Service 层, 工具函数）
+  mcp-server/ MCP 工具服务（OpenCode stdio 传输，54 个工具）
 ```
 
 > `packages/agents/` 在 V2 中不再使用（Agent prompt 定义在项目根目录 `agents/*.md`，由 OpenCode 自动加载）。
@@ -91,7 +96,7 @@ packages/
 - Auth session cookie 校验中间件
 - **禁止**写任何业务逻辑 API
 
-### Hono (packages/server)
+### Hono (packages/api-server)
 
 - 所有 RESTful API：`/api/projects/:id/*`
 - OpenCode session 管理
@@ -244,7 +249,7 @@ DB 枚举 `characterRoleEnum`（`packages/core/src/db/schema/enums.ts`）缺少 
 - 在 Next.js 里写业务逻辑 API
 - 阻塞 Next.js 启动（不能在模块顶层 await）
 - 直接调 LLM Provider（必须通过 OpenCode SDK）
-- 依赖方向反转（只能 web/server → core，不能反向）
+- 依赖方向反转（只能 web/api-server → core，不能反向）
 
 ### 测试
 
@@ -311,7 +316,7 @@ DB 枚举 `characterRoleEnum`（`packages/core/src/db/schema/enums.ts`）缺少 
 |------|------|------|
 | 设计文档 | ✅ 完成 | 12 篇 V2 设计文档（含 S11 技术方案） |
 | SDD 基础设施 | ✅ 完成 | specs/ 目录、开发流程建立 |
-| MCP 工具规范 | ✅ 完成 | specs/mcp-tools/SPEC.md + S6 重写（18 域 48 工具） |
+| MCP 工具规范 | ✅ 完成 | specs/mcp-tools/SPEC.md + S6 重写（18 域 54 工具） |
 | 文档一致性修复 | ⏳ 待开始 | 修复 V2 文档间的不一致 |
 | V1 代码清理 | ⏳ 待开始 | 删除无用代码，保留基础设施 |
 | Spec 编写 | ✅ 完成 | 10 个模块全部完成（含 mcp-tools） |

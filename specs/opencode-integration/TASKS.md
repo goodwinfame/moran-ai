@@ -33,26 +33,28 @@
   - `gate_check`：通用门禁检查器
 - **验收**：每个工具有成功 + 门禁拒绝测试用例
 
-### T4: 实现脑暴工具（3 个）
+### T4: 实现脑暴工具（4 个）
 - **输出**：`src/tools/brainstorm.ts`
   - `brainstorm_create`：创建脑暴记录
   - `brainstorm_read`：读取脑暴（按阶段）
   - `brainstorm_update`：更新脑暴
+  - `brainstorm_patch`：局部文本替换（find/replace）
 - **验收**：每个工具有测试用例
 
-### T5: 实现世界观工具（5 个）
+### T5: 实现世界观工具（6 个）
 - **输出**：`src/tools/world.ts`
   - `world_create`：创建世界设定（type="setting" | "subsystem" | "location"）
   - `world_read`：读取世界设定
   - `world_update`：更新世界设定
   - `world_delete`：删除世界设定
   - `world_check`：世界观自洽性检查
+  - `world_patch`：局部文本替换（find/replace）
 - **验收**：每个工具有测试用例，门禁（需创意简报）生效
 
-### T6: 实现角色工具（9 个）
+### T6: 实现角色工具（10 个）
 - **输出**：
   - `src/tools/character.ts`
-    - `character_create/read/update/delete`
+    - `character_create/read/update/delete/patch`
   - `src/tools/character-state.ts`
     - `character_state_create`：创建角色状态快照（不可变）
     - `character_state_read`：读取角色状态
@@ -60,16 +62,16 @@
     - `relationship_create/read/update`
 - **验收**：每个工具有测试用例，门禁（需世界设定）生效
 
-### T7: 实现写作准备 + 章节工具（11 个）
+### T7: 实现写作准备 + 章节工具（13 个）
 - **输出**：
   - `src/tools/style.ts`
     - `style_create/read/update`
   - `src/tools/outline.ts`
-    - `outline_create`（type="synopsis" | "arc_detail"）/ `outline_read` / `outline_update`
+    - `outline_create`（type="synopsis" | "arc_detail"）/ `outline_read` / `outline_update` / `outline_patch`
   - `src/tools/context.ts`
     - `context_assemble`（核心：组装写作上下文）
   - `src/tools/chapter.ts`
-    - `chapter_create/read/update/archive`
+    - `chapter_create/read/update/archive/patch`
 - **验收**：
   - `context_assemble` 正确组装 brief + world + characters + summary + style + lessons + threads
   - `chapter_create` 门禁链完整检查（大纲 + Brief + 角色 + 文风）
@@ -94,9 +96,9 @@
     - `timeline_create/read`
 - **验收**：每个工具有测试用例，门禁（需审校通过）生效
 
-### T10: 实现知识库 + 分析工具（9 个）
+### T10: 实现知识库 + 分析工具（10 个）
 - **输出**：
-  - `src/tools/knowledge.ts`（knowledge_create/read/update/delete）
+  - `src/tools/knowledge.ts`（knowledge_create/read/update/delete/patch）
   - `src/tools/lesson.ts`（lesson_create/read/update）
   - `src/tools/analysis.ts`（analysis_execute/read）
 - **验收**：每个工具有测试用例
@@ -107,10 +109,10 @@
   - `src/tools/index.ts`（统一注册函数）
   - `src/server.ts`（完整 MCP Server）
   - `src/index.ts`（Stdio 传输启动）
-- **验收**：MCP Server 可启动，所有 48 个工具注册成功
+- **验收**：MCP Server 可启动，所有 54 个工具注册成功
 
 ### T12: Session Manager 增强
-- **输入**：`packages/server/src/opencode/manager.ts`
+- **输入**：`packages/api-server/src/opencode/manager.ts`
 - **输出**：
   - `restore()` 方法：服务重启恢复映射
   - `getMessages()` 方法：代理获取消息历史

@@ -5,14 +5,14 @@
 ## 任务列表
 
 ### T1: 实现 EventTransformer
-- **输出**：`packages/server/src/sse/transformer.ts`
+- **输出**：`packages/api-server/src/sse/transformer.ts`
   - OpenCode 原生事件 → SSE 前端事件格式转换
   - 14 种事件类型映射（8 种 Chat + 3 种 Chapter + 3 种 Brainstorm）
   - 单调递增事件 ID 生成
 - **验收**：单元测试覆盖所有 14 种事件类型转换
 
 ### T2: 实现 SSEBroadcaster
-- **输出**：`packages/server/src/sse/broadcaster.ts`
+- **输出**：`packages/api-server/src/sse/broadcaster.ts`
   - 连接管理（add / remove）
   - 事件广播（session → 所有连接）
   - EventBuffer 集成（断线回放）
@@ -58,7 +58,7 @@
   - tool_result 工具名 → Tab 映射表
   - 10 秒操作保护逻辑
   - Tab 徽标管理
-- **验收**：映射表覆盖所有 47 个工具，保护逻辑有单元测试
+- **验收**：映射表覆盖所有 54 个工具（写入类），保护逻辑有单元测试
 
 ### T8: 实现 IndexedDB 离线缓存
 - **输出**：`packages/web/src/lib/offline-cache.ts`

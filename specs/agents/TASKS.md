@@ -88,12 +88,12 @@
 - **验收**：三种模式返回正确数据结构，token budget 生效
 
 ### T8: 实现模型覆盖优先级逻辑
-- **输出**：在 `packages/server/src/opencode/` 中实现 `resolveModel()` 函数
+- **输出**：在 `packages/api-server/src/opencode/` 中实现 `resolveModel()` 函数
 - **规则**：项目级覆盖 > 全局偏好 > 风格默认 > Agent YAML 默认
 - **验收**：单元测试覆盖 4 级优先级
 
 ### T9: 实现温度场景化逻辑
-- **输出**：在 `packages/server/src/opencode/` 中实现 `resolveTemperature()` 函数
+- **输出**：在 `packages/api-server/src/opencode/` 中实现 `resolveTemperature()` 函数
 - **规则**：5 种章节类型对应不同温度范围（日常/战斗/情感/悬疑/高潮）
 - **验收**：单元测试覆盖 5 种场景
 
@@ -115,7 +115,7 @@
 ### T12: 端到端集成验证
 - **依赖**：T1-T11
 - **输出**：
-  - 启动全栈（postgres + opencode + server + web）
+  - 启动全栈（postgres + opencode + api-server + web）
   - 验证墨衡可以响应用户消息
   - 验证灵犀可被委派执行脑暴
   - 验证门禁拒绝非法操作

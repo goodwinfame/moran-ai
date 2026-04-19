@@ -31,35 +31,37 @@
 
 ### 1.1 设计原则
 
-- **命名统一**：`{domain}_{action}`，动作来自标准动词集 {create, read, update, delete, check, execute, assemble, archive}
+- **命名统一**：`{domain}_{action}`，动作来自标准动词集 {create, read, update, delete, check, execute, assemble, archive, patch}
 - **CRUD 对称**：可写域必有 read，跨 Agent 共享域有完整 CRU(D)
 - **输出统一**：成功 `{ ok: true, data }` / 失败 `{ ok: false, error: { code, message, details? } }`
 - **子类型参数化**：同一域的子类型用 `type` 参数区分，不膨胀工具名
 - **门禁内置**：每个写入工具在执行前检查前置条件，拒绝时返回原因和建议
 
-### 1.2 工具域总览（18 域 48 工具）
+### 1.2 工具域总览（18 域 54 工具）
 
 | # | 域 | 工具数 | 动作 | 文件 |
 |---|---|---|---|---|
 | 1 | `project` | 2 | read, update | project.ts |
 | 2 | `gate` | 1 | check | project.ts |
-| 3 | `brainstorm` | 3 | create, read, update | brainstorm.ts |
-| 4 | `world` | 5 | create, read, update, delete, check | world.ts |
-| 5 | `character` | 4 | create, read, update, delete | character.ts |
+| 3 | `brainstorm` | 4 | create, read, update, **patch** | brainstorm.ts |
+| 4 | `world` | 6 | create, read, update, delete, check, **patch** | world.ts |
+| 5 | `character` | 5 | create, read, update, delete, **patch** | character.ts |
 | 6 | `character_state` | 2 | create, read | character-state.ts |
 | 7 | `relationship` | 3 | create, read, update | relationship.ts |
 | 8 | `style` | 3 | create, read, update | style.ts |
-| 9 | `outline` | 3 | create, read, update | outline.ts |
-| 10 | `chapter` | 4 | create, read, update, archive | chapter.ts |
+| 9 | `outline` | 4 | create, read, update, **patch** | outline.ts |
+| 10 | `chapter` | 5 | create, read, update, archive, **patch** | chapter.ts |
 | 11 | `review` | 1 | execute | review.ts |
 | 12 | `summary` | 2 | create, read | summary.ts |
 | 13 | `thread` | 3 | create, read, update | thread.ts |
 | 14 | `timeline` | 2 | create, read | timeline.ts |
-| 15 | `knowledge` | 4 | create, read, update, delete | knowledge.ts |
+| 15 | `knowledge` | 5 | create, read, update, delete, **patch** | knowledge.ts |
 | 16 | `lesson` | 3 | create, read, update | lesson.ts |
 | 17 | `analysis` | 2 | execute, read | analysis.ts |
 | 18 | `context` | 1 | assemble | context.ts |
-| | **合计** | **48** | | |
+| | **合计** | **54** | | |
+
+> `_patch` 工具详见 `docs/v2-s11-technical-architecture.md` §3.9。所有 `_patch` 工具共享相同的 find/replace 语义和 `patches: [{ find, replace }]` 输入格式。
 
 ---
 
@@ -218,6 +220,20 @@ gate: 无
 agent: 灵犀
 ```
 
+#### `brainstorm_patch`
+
+```typescript
+// 局部编辑脑暴文档（find/replace）
+input: {
+  projectId: string,
+  brainstormId: string,
+  patches: [{ find: string, replace: string }]   // 1-20 个替换操作
+}
+output.data: { id: string, appliedCount: number }
+gate: 无
+agent: 灵犀, 墨衡
+```
+
 ---
 
 ### 3.3 世界观（world）
@@ -320,6 +336,20 @@ agent: 匠心, 博闻
 note: 检查结果自动保存到 project_documents（type="world_check_report"）
 ```
 
+#### `world_patch`
+
+```typescript
+// 局部编辑世界设定/子系统/地点内容（find/replace）
+input: {
+  projectId: string,
+  worldId: string,
+  patches: [{ find: string, replace: string }]   // 1-20 个替换操作
+}
+output.data: { id: string, appliedCount: number }
+gate: 无
+agent: 匠心, 博闻
+```
+
 ---
 
 ### 3.4 角色（character, character_state, relationship）
@@ -393,6 +423,20 @@ gate:
   HARD: 该角色存在
   SOFT: 该角色未在已归档章节中出场（有出场时警告但仍执行）
 agent: 匠心
+```
+
+#### `character_patch`
+
+```typescript
+// 局部编辑角色资料（find/replace）
+input: {
+  projectId: string,
+  characterId: string,
+  patches: [{ find: string, replace: string }]   // 1-20 个替换操作
+}
+output.data: { id: string, appliedCount: number }
+gate: 无
+agent: 匠心, 博闻
 ```
 
 #### `character_state_create`
@@ -619,6 +663,20 @@ gate:
 agent: 匠心
 ```
 
+#### `outline_patch`
+
+```typescript
+// 局部编辑大纲内容（find/replace，适合调整某章 brief 而非重写整个大纲）
+input: {
+  projectId: string,
+  outlineId: string,
+  patches: [{ find: string, replace: string }]   // 1-20 个替换操作
+}
+output.data: { id: string, appliedCount: number }
+gate: 无
+agent: 匠心
+```
+
 ---
 
 ### 3.6 章节写作（chapter, context）
@@ -701,6 +759,20 @@ gate:
   HARD: 时间线已记录
   HARD: 角色状态已快照
 agent: 载史
+```
+
+#### `chapter_patch`
+
+```typescript
+// 局部编辑章节内容（find/replace，审校后改段落最高频场景）
+input: {
+  projectId: string,
+  chapterId: string,
+  patches: [{ find: string, replace: string }]   // 1-20 个替换操作
+}
+output.data: { id: string, appliedCount: number }
+gate: 无
+agent: 执笔, 明镜
 ```
 
 #### `context_assemble`
@@ -975,6 +1047,20 @@ gate:
 agent: 博闻
 ```
 
+#### `knowledge_patch`
+
+```typescript
+// 局部编辑知识条目内容（find/replace）
+input: {
+  projectId: string,
+  knowledgeId: string,
+  patches: [{ find: string, replace: string }]   // 1-20 个替换操作
+}
+output.data: { id: string, appliedCount: number }
+gate: 无
+agent: 博闻
+```
+
 #### `lesson_create`
 
 ```typescript
@@ -1131,7 +1217,7 @@ agent: 析典, 墨衡, 博闻
 {
   ok: false,
   error: {
-    code: "GATE_FAILED" | "NOT_FOUND" | "CONFLICT" | "VALIDATION" | "INTERNAL",
+    code: "GATE_FAILED" | "NOT_FOUND" | "CONFLICT" | "VALIDATION" | "PATCH_NO_MATCH" | "INTERNAL",
     message: string,           // 人类可读的错误描述（中文）
     details?: {
       // GATE_FAILED 时：
@@ -1181,17 +1267,17 @@ knowledge_read, lesson_read, lesson_create
 ### 灵犀（lingxi）— 灵感
 
 ```
-brainstorm_create, brainstorm_read, brainstorm_update,
+brainstorm_create, brainstorm_read, brainstorm_update, brainstorm_patch,
 project_read
 ```
 
 ### 匠心（jiangxin）— 设计
 
 ```
-world_create, world_read, world_update, world_delete, world_check,
-character_create, character_read, character_update, character_delete,
+world_create, world_read, world_update, world_delete, world_check, world_patch,
+character_create, character_read, character_update, character_delete, character_patch,
 relationship_create, relationship_read, relationship_update,
-outline_create, outline_read, outline_update,
+outline_create, outline_read, outline_update, outline_patch,
 project_read, knowledge_read
 ```
 
@@ -1199,7 +1285,7 @@ project_read, knowledge_read
 
 ```
 context_assemble,
-chapter_create, chapter_read, chapter_update,
+chapter_create, chapter_read, chapter_update, chapter_patch,
 style_create, style_read, style_update,
 character_read, character_state_read,
 world_read, outline_read, thread_read,
@@ -1210,7 +1296,7 @@ knowledge_read, lesson_read, summary_read
 
 ```
 review_execute,
-chapter_read, character_read, world_read,
+chapter_read, chapter_patch, character_read, world_read,
 outline_read, thread_read, knowledge_read, lesson_read
 ```
 
@@ -1228,7 +1314,7 @@ chapter_read, character_read, world_read, outline_read
 ### 博闻（bowen）— 知识库
 
 ```
-knowledge_create, knowledge_read, knowledge_update, knowledge_delete,
+knowledge_create, knowledge_read, knowledge_update, knowledge_delete, knowledge_patch,
 lesson_create, lesson_read, lesson_update,
 chapter_read, character_read, world_read,
 thread_read, summary_read, timeline_read

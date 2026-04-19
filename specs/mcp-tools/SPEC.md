@@ -43,6 +43,7 @@
 | `execute` | 执行复合操作（涉及多步骤/多表） | 审校、分析 |
 | `assemble` | 从多数据源组装只读视图 | 上下文组装 |
 | `archive` | 冻结实体状态（不可再修改） | 章节归档 |
+| `patch` | 局部文本替换（find/replace 语义） | 审校后改段落、微调设定描述 |
 
 ### 2.3 禁止的动词
 
@@ -258,29 +259,29 @@ export function fail(code: string, message: string, details?: object) {
 
 ## 7. 工具域总览
 
-当前工具集：**18 域 48 工具**。
+当前工具集：**18 域 54 工具**。
 
 | # | 域 | 工具数 | 动作列表 | 主要使用 Agent |
 |---|---|---|---|---|
 | 1 | `project` | 2 | read, update | 墨衡 |
 | 2 | `gate` | 1 | check | 墨衡 |
-| 3 | `brainstorm` | 3 | create, read, update | 灵犀 |
-| 4 | `world` | 5 | create, read, update, delete, check | 匠心 |
-| 5 | `character` | 4 | create, read, update, delete | 匠心 |
+| 3 | `brainstorm` | 4 | create, read, update, **patch** | 灵犀 |
+| 4 | `world` | 6 | create, read, update, delete, check, **patch** | 匠心 |
+| 5 | `character` | 5 | create, read, update, delete, **patch** | 匠心 |
 | 6 | `character_state` | 2 | create, read | 载史, 执笔 |
 | 7 | `relationship` | 3 | create, read, update | 匠心 |
 | 8 | `style` | 3 | create, read, update | 执笔 |
-| 9 | `outline` | 3 | create, read, update | 匠心 |
-| 10 | `chapter` | 4 | create, read, update, archive | 执笔, 载史 |
+| 9 | `outline` | 4 | create, read, update, **patch** | 匠心 |
+| 10 | `chapter` | 5 | create, read, update, archive, **patch** | 执笔, 载史 |
 | 11 | `review` | 1 | execute | 明镜 |
 | 12 | `summary` | 2 | create, read | 载史 |
 | 13 | `thread` | 3 | create, read, update | 载史 |
 | 14 | `timeline` | 2 | create, read | 载史 |
-| 15 | `knowledge` | 4 | create, read, update, delete | 博闻, 析典 |
+| 15 | `knowledge` | 5 | create, read, update, delete, **patch** | 博闻, 析典 |
 | 16 | `lesson` | 3 | create, read, update | 博闻, 墨衡 |
 | 17 | `analysis` | 2 | execute, read | 析典 |
 | 18 | `context` | 1 | assemble | 执笔 |
-| | **合计** | **48** | | |
+| | **合计** | **54** | | |
 
 ---
 
@@ -344,19 +345,19 @@ export function fail(code: string, message: string, details?: object) {
 packages/mcp-server/src/tools/
 ├── index.ts             # registerAllTools(server) —— 导入并调用所有域注册函数
 ├── project.ts           # project_read, project_update, gate_check
-├── brainstorm.ts        # brainstorm_create, brainstorm_read, brainstorm_update
-├── world.ts             # world_create, world_read, world_update, world_delete, world_check
-├── character.ts         # character_create, character_read, character_update, character_delete
+├── brainstorm.ts        # brainstorm_create, brainstorm_read, brainstorm_update, brainstorm_patch
+├── world.ts             # world_create, world_read, world_update, world_delete, world_check, world_patch
+├── character.ts         # character_create, character_read, character_update, character_delete, character_patch
 ├── character-state.ts   # character_state_create, character_state_read
 ├── relationship.ts      # relationship_create, relationship_read, relationship_update
 ├── style.ts             # style_create, style_read, style_update
-├── outline.ts           # outline_create, outline_read, outline_update
-├── chapter.ts           # chapter_create, chapter_read, chapter_update, chapter_archive
+├── outline.ts           # outline_create, outline_read, outline_update, outline_patch
+├── chapter.ts           # chapter_create, chapter_read, chapter_update, chapter_archive, chapter_patch
 ├── review.ts            # review_execute
 ├── summary.ts           # summary_create, summary_read
 ├── thread.ts            # thread_create, thread_read, thread_update
 ├── timeline.ts          # timeline_create, timeline_read
-├── knowledge.ts         # knowledge_create, knowledge_read, knowledge_update, knowledge_delete
+├── knowledge.ts         # knowledge_create, knowledge_read, knowledge_update, knowledge_delete, knowledge_patch
 ├── lesson.ts            # lesson_create, lesson_read, lesson_update
 ├── analysis.ts          # analysis_execute, analysis_read
 └── context.ts           # context_assemble
@@ -395,7 +396,7 @@ tools/
 
 本规范的验收标准：
 
-1. **命名一致性**：所有 48 个工具名符合 `{domain}_{action}` 格式，无例外。
+1. **命名一致性**：所有 54 个工具名符合 `{domain}_{action}` 格式，无例外。
 2. **动词标准化**：无标准集外的动词出现在工具名中。
 3. **输出统一性**：所有工具返回 `{ ok, data }` 或 `{ ok, error }` 格式。
 4. **CRUD 完整性**：所有可写域有对应 read。跨 Agent 共享域有完整 CRU(D)。

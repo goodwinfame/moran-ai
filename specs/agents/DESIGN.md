@@ -10,7 +10,7 @@
 | Agent 运行时 | ✅ OpenCode serve 可用 | 挂载配置 + MCP Server |
 | Agent 配置 YAML | ❌ 不存在 | 全新编写：10 个 Agent + 9 个写手风格 |
 | MCP Server 包 | ❌ 不存在 | 全新构建（已在 opencode-integration DESIGN 中规划包结构） |
-| 47 个 MCP 工具 | ❌ 不存在 | 全新实现（已在 opencode-integration DESIGN 中规划工具文件） |
+| 54 个 MCP 工具 | ❌ 不存在 | 全新实现（已在 opencode-integration DESIGN 中规划工具文件） |
 | 门禁系统 | ❌ 不存在 | 全新实现（GateChecker + 规则定义） |
 | Agent system prompts | ❌ 不存在 | 全新编写 |
 
@@ -173,6 +173,7 @@ tools:
   - brainstorm_create
   - brainstorm_read
   - brainstorm_update
+  - brainstorm_patch
   - project_read
 ```
 
@@ -222,9 +223,11 @@ tools:
   - world_update          # type: setting | subsystem | location
   - world_delete          # type: setting | subsystem | location
   - world_check           # 一致性校验
+  - world_patch            # 局部文本替换
   - character_create
   - character_read
   - character_update
+  - character_patch        # 局部文本替换
   - character_state_create
   - relationship_create
   - relationship_update
@@ -233,6 +236,7 @@ tools:
   - style_update
   - outline_create        # type: synopsis | arc_detail
   - outline_update
+  - outline_patch          # 局部文本替换
 ```
 
 #### 2.2.4 执笔配置
@@ -286,6 +290,7 @@ tools:
   - context_assemble
   - chapter_create
   - chapter_update
+  - chapter_patch          # 局部文本替换（审校后改段落）
   - style_read
   - lesson_read
 ```
@@ -340,6 +345,7 @@ system_prompt: |
 tools:
   - project_read
   - review_execute        # round=1/2/3/4，轮次由参数区分
+  - chapter_patch          # 审校后指导执笔修改段落
   - character_read
   - world_read
   - style_read
@@ -372,6 +378,7 @@ tools:
   - knowledge_read
   - knowledge_create
   - knowledge_update        # 含 glossary（category="glossary"）
+  - knowledge_patch          # 局部文本替换
   - lesson_create
   - lesson_read
   - world_read
@@ -535,7 +542,7 @@ async function contextAssemble(projectId: string, chapterNumber: number, mode: s
 实现方式：
 
 ```typescript
-// 在 Hono server 层解析模型选择（在转发请求给 OpenCode 之前）
+// 在 API Server 层解析模型选择（在转发请求给 OpenCode 之前）
 function resolveModel(projectConfig: ProjectConfig, agentId: string, styleId?: string): string {
   // 1. 项目级覆盖
   if (projectConfig.modelOverrides?.[agentId]) {
@@ -691,7 +698,7 @@ opencode:
 - OpenCode serve 容器本身（Docker 镜像不变）
 - PostgreSQL 容器配置
 - Next.js rewrite 代理
-- Hono server 核心路由（仅新增 Agent 状态相关端点）
+- Hono API Server 核心路由（仅新增 Agent 状态相关端点）
 
 ## 4. 风险与注意事项
 

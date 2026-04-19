@@ -6,7 +6,7 @@
 
 ## 1. 概述
 
-Agent 模块定义墨染 V2 的 10 个 AI Agent 体系（5 核心 + 3 支援 + 2 可选），包括各 Agent 的配置（模型、温度、权限）、墨衡委派机制、47 个 MCP 工具接口、门禁校验系统。所有 Agent prompt 在 OpenCode config 中定义，不在 packages/agents/ 中写代码。
+Agent 模块定义墨染 V2 的 10 个 AI Agent 体系（5 核心 + 3 支援 + 2 可选），包括各 Agent 的配置（模型、温度、权限）、墨衡委派机制、54 个 MCP 工具接口、门禁校验系统。所有 Agent prompt 在 OpenCode config 中定义，不在 packages/agents/ 中写代码。
 
 技术栈：OpenCode serve（Agent 运行时）+ MCP Server（工具层）+ PostgreSQL（数据持久化）。
 
@@ -112,21 +112,21 @@ Agent 模块定义墨染 V2 的 10 个 AI Agent 体系（5 核心 + 3 支援 + 2
 **温度场景化**（5 种章节类型）：
 - 日常：0.7-0.8 | 战斗：0.6-0.7 | 情感：0.75-0.85 | 悬疑：0.5-0.6 | 高潮：0.65-0.75
 
-### 2.5 MCP 工具体系（48 个）
+### 2.5 MCP 工具体系（54 个）
 
 #### 分类总览
 
 | 类别 | 工具数 | 工具名称 |
 |------|--------|---------|
 | 项目管理 | 3 | project_read/update, gate_check |
-| 灵感脑暴 | 3 | brainstorm_create/read/update |
-| 世界观 | 5 | world_create/read/update/delete/check |
-| 角色 | 9 | character_create/read/update/delete, character_state_create/read, relationship_create/read/update |
-| 写作准备 | 7 | style_create/read/update, outline_create/read/update, context_assemble |
-| 章节写作 | 4 | chapter_create/read/update/archive |
+| 灵感脑暴 | 4 | brainstorm_create/read/update/patch |
+| 世界观 | 6 | world_create/read/update/delete/check/patch |
+| 角色 | 10 | character_create/read/update/delete/patch, character_state_create/read, relationship_create/read/update |
+| 写作准备 | 8 | style_create/read/update, outline_create/read/update/patch, context_assemble |
+| 章节写作 | 5 | chapter_create/read/update/archive/patch |
 | 审校 | 1 | review_execute |
 | 归档 | 7 | summary_create/read, thread_create/read/update, timeline_create/read |
-| 知识库 | 7 | knowledge_create/read/update/delete, lesson_create/read/update |
+| 知识库 | 8 | knowledge_create/read/update/delete/patch, lesson_create/read/update |
 | 分析 | 2 | analysis_execute/read |
 
 #### 关键工具接口
@@ -207,7 +207,7 @@ interface MCPToolResult {
   ok: boolean;
   data?: any;
   error?: {
-    code: "GATE_FAILED" | "NOT_FOUND" | "CONFLICT" | "INTERNAL";
+    code: "GATE_FAILED" | "NOT_FOUND" | "CONFLICT" | "PATCH_NO_MATCH" | "INTERNAL";
     message: string;
     gate_details?: { passed: string[], failed: string[], suggestions: string[] };
   }
@@ -258,7 +258,7 @@ interface MCPToolResult {
 
 ### 3.3 MCP 工具
 
-- [ ] 47 个 MCP 工具全部可调用
+- [ ] 54 个 MCP 工具全部可调用
 - [ ] 每个工具的 input/output 类型符合 v2-s6 定义
 - [ ] HARD 门禁不满足时返回 `{ ok: false, error: { code: "GATE_FAILED", ... } }`
 - [ ] SOFT 门禁不满足时返回 `{ ok: true }` + 警告

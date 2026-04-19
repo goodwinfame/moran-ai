@@ -38,22 +38,22 @@ interface OpenCodeSessionManager {
 
 ### 2.2 MCP Server
 
-MCP Server 是一个独立进程/模块，暴露 47 个工具给 OpenCode 中运行的 LLM。
-工具通过 DB 操作实现，门禁逻辑内置于工具中。
+MCP Server 是一个独立进程/模块，暴露 54 个工具给 OpenCode 中运行的 LLM。
+工具通过 Service 层操作 DB，门禁逻辑内置于工具中。
 
-#### 工具分类（10 类，48 个）
+#### 工具分类（10 类，54 个）
 
 | 类别 | 工具数 | 工具列表 |
 |------|--------|----------|
 | 项目管理 | 3 | project_read/update, gate_check |
-| 灵感脑暴 | 3 | brainstorm_create/read/update |
-| 世界观 | 5 | world_create/read/update/delete/check |
-| 角色 | 9 | character_create/read/update/delete, character_state_create/read, relationship_create/read/update |
-| 写作准备 | 7 | style_create/read/update, outline_create/read/update, context_assemble |
-| 章节写作 | 4 | chapter_create/read/update/archive |
+| 灵感脑暴 | 4 | brainstorm_create/read/update/patch |
+| 世界观 | 6 | world_create/read/update/delete/check/patch |
+| 角色 | 10 | character_create/read/update/delete/patch, character_state_create/read, relationship_create/read/update |
+| 写作准备 | 8 | style_create/read/update, outline_create/read/update/patch, context_assemble |
+| 章节写作 | 5 | chapter_create/read/update/archive/patch |
 | 审校 | 1 | review_execute |
 | 归档 | 7 | summary_create/read, thread_create/read/update, timeline_create/read |
-| 知识库 | 7 | knowledge_create/read/update/delete, lesson_create/read/update |
+| 知识库 | 8 | knowledge_create/read/update/delete/patch, lesson_create/read/update |
 | 分析 | 2 | analysis_execute/read |
 
 #### 工具接口规范
@@ -67,7 +67,7 @@ interface MCPToolResult {
   ok: boolean;
   data?: any;
   error?: {
-    code: "GATE_FAILED" | "NOT_FOUND" | "CONFLICT" | "INTERNAL";
+    code: "GATE_FAILED" | "NOT_FOUND" | "CONFLICT" | "VALIDATION" | "PATCH_NO_MATCH" | "INTERNAL";
     message: string;
     gate_details?: {
       passed: string[];
@@ -80,7 +80,7 @@ interface MCPToolResult {
 
 #### MCP 工具详细接口
 
-完整的 47 个工具接口定义见 `docs/v2-s6-mcp-gates.md` Section 3。本 SPEC 不重复，以该文档为准。
+完整的 54 个工具接口定义见 `docs/v2-s6-mcp-gates.md` Section 3。本 SPEC 不重复，以该文档为准。
 
 ### 2.3 门禁机制
 
@@ -118,11 +118,11 @@ interface MCPToolResult {
 
 | Agent | 英文 ID | 模型 | 温度 | 可用工具 |
 |-------|---------|------|------|----------|
-| 墨衡 | moheng | Claude Sonnet 4 | 0.3 | 全部 47 个 + dispatch |
-| 灵犀 | lingxi | Claude Sonnet 4 | 0.9 | brainstorm_* |
-| 匠心 | jiangxin | Claude Sonnet 4 | 0.5 | world_*, character_*, outline_*, style_* |
-| 执笔 | zhibi | Claude Sonnet 4 | 0.5-0.85 | context_assemble, chapter_*, style_read |
-| 明镜 | mingjing | Claude Sonnet 4 | 0.2 | review_* |
+| 墨衡 | moheng | Claude Sonnet 4 | 0.3 | 全部 54 个 + dispatch |
+| 灵犀 | lingxi | Claude Sonnet 4 | 0.9 | brainstorm_*, project_read |
+| 匠心 | jiangxin | Claude Sonnet 4 | 0.5 | world_*, character_*, outline_*, knowledge_read |
+| 执笔 | zhibi | Claude Sonnet 4 | 0.5-0.85 | context_assemble, chapter_*, style_*, character_read, world_read, ... |
+| 明镜 | mingjing | Claude Sonnet 4 | 0.2 | review_*, chapter_patch |
 | 载史 | zaishi | Claude Haiku/Sonnet | 0.3 | summary_*, thread_*, timeline_* |
 | 博闻 | bowen | Claude Haiku | 0.3 | knowledge_*, lesson_*, world_check |
 | 析典 | xidian | Claude Sonnet 4 | 0.4 | analysis_* |
@@ -149,7 +149,7 @@ interface MCPToolResult {
 
 ### MCP Server
 
-- [ ] 47 个工具全部实现
+- [ ] 54 个工具全部实现
 - [ ] 每个工具有对应的单元测试（至少 1 成功 + 1 门禁拒绝用例）
 - [ ] 工具 output 遵循 `MCPToolResult` 统一格式
 - [ ] HARD 门禁不满足时返回 `{ ok: false, error: { code: "GATE_FAILED", ... } }`
