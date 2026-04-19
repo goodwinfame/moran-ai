@@ -15,6 +15,16 @@ const nextConfig = {
   outputFileTracingRoot: path.join(__dirname, "../../"),
   turbopack: {},
 
+  async redirects() {
+    return [
+      {
+        source: "/projects",
+        destination: "/",
+        permanent: true,
+      },
+    ];
+  },
+
   // ── API 代理：浏览器同源访问 /api/*，Next.js 转发到 Hono ──
   async rewrites() {
     return [
