@@ -31,6 +31,7 @@ const sendBodySchema = z.object({
 
 const eventsQuerySchema = z.object({
   sessionId: z.string(),
+  projectId: z.string().optional(),
   lastEventId: z.string().optional(),
 });
 
@@ -77,7 +78,8 @@ export function createChatRoutes() {
    *   - 30-second heartbeat to keep the connection alive
    */
   chat.get("/events", zValidator("query", eventsQuerySchema), (c) => {
-    const { sessionId } = c.req.valid("query");
+    const { sessionId, projectId } = c.req.valid("query");
+    const userId = c.get("userId");
     const lastEventIdHeader = c.req.header("Last-Event-Id");
 
     return streamSSE(c, async (stream) => {
@@ -112,7 +114,7 @@ export function createChatRoutes() {
       broadcaster.addConnection(sessionId, conn);
 
       // ── 3. Subscribe to OpenCode events ───────────────────────────────────
-      const transformer = new EventTransformer();
+      const transformer = new EventTransformer({ projectId, userId, sessionId });
       const { stream: eventStream, close } = sessionManager.subscribeEvents(sessionId);
 
       // ── 4. Heartbeat every 30 seconds ─────────────────────────────────────

@@ -8,9 +8,16 @@ import { api } from "@/lib/api";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
+import { TokenPopover, type UsageSummary } from "@/components/chat/TokenPopover";
 
 interface ChatNavBarProps {
   projectId: string;
+}
+
+function formatTokenCount(count: number): string {
+  if (count >= 1_000_000) return `${(count / 1_000_000).toFixed(1)}M`;
+  if (count >= 1_000) return `${(count / 1_000).toFixed(1)}K`;
+  return String(count);
 }
 
 export function ChatNavBar({ projectId }: ChatNavBarProps) {
@@ -22,6 +29,8 @@ export function ChatNavBar({ projectId }: ChatNavBarProps) {
     chapterCount: number;
     wordCount: number;
   } | null>(null);
+  const [tokenCount, setTokenCount] = useState(0);
+  const [usageSummary, setUsageSummary] = useState<UsageSummary | null>(null);
 
   useEffect(() => {
     async function loadProject() {
@@ -30,6 +39,22 @@ export function ChatNavBar({ projectId }: ChatNavBarProps) {
         setProject(res.data);
       } catch (err) {
         console.error("Failed to load project", err);
+      }
+
+      try {
+        const usageRes = await api.get<{
+          ok: true;
+          data: {
+            totalTokens: number;
+            totalCostUsd: number;
+            byAgent: Record<string, { tokens: number; cost: number }>;
+            byModel: Record<string, { tokens: number; cost: number }>;
+          };
+        }>(`/api/projects/${projectId}/usage/summary`);
+        setTokenCount(usageRes.data.totalTokens);
+        setUsageSummary(usageRes.data);
+      } catch {
+        // Keep showing 0 on failure
       }
     }
     loadProject();
@@ -95,7 +120,11 @@ export function ChatNavBar({ projectId }: ChatNavBarProps) {
             <span className="text-border">|</span>
             <span className="tabular-nums">{project.wordCount.toLocaleString()} 字</span>
             <span className="text-border">|</span>
-            <span className="text-muted-foreground/60">0 Token</span>
+            <TokenPopover projectId={projectId} summary={usageSummary}>
+              <button type="button" className="text-muted-foreground/60 hover:text-muted-foreground transition-colors cursor-pointer">
+                {formatTokenCount(tokenCount)} Token
+              </button>
+            </TokenPopover>
           </div>
         )}
       </div>

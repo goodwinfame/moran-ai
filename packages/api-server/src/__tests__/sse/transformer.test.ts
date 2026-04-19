@@ -1,10 +1,20 @@
 /**
  * EventTransformer — Unit Tests
  *
- * Verifies all 14 V2 SSE event type mappings, unknown type handling,
- * and counter monotonicity.
+ * Verifies all 15 V2 SSE event type mappings, unknown type handling,
+ * counter monotonicity, and usage extraction.
  */
-import { describe, it, expect, beforeEach } from "vitest";
+import { describe, it, expect, beforeEach, vi } from "vitest";
+
+// ── Mock costService before importing transformer ─────────────────────────────
+
+const mockRecordUsage = vi.fn();
+vi.mock("@moran/core/services", () => ({
+  costService: {
+    recordUsage: (...args: unknown[]) => mockRecordUsage(...args),
+  },
+}));
+
 import { EventTransformer } from "../../sse/transformer.js";
 import type { OpenCodeEvent } from "../../opencode/manager.js";
 
@@ -21,6 +31,7 @@ describe("EventTransformer", () => {
 
   beforeEach(() => {
     transformer = new EventTransformer();
+    vi.clearAllMocks();
   });
 
   // ── General chat events (8 types) ─────────────────────────────────────────
@@ -228,6 +239,105 @@ describe("EventTransformer", () => {
       const after = Date.now();
       expect(result?.timestamp).toBeGreaterThanOrEqual(before);
       expect(result?.timestamp).toBeLessThanOrEqual(after);
+    });
+  });
+
+  // ── message_complete (usage event) ────────────────────────────────────────
+
+  describe("message_complete event", () => {
+    it("maps session.event.finish → message_complete", () => {
+      const result = transformer.transform(makeRaw("session.event.finish", {}));
+      expect(result).not.toBeNull();
+      expect(result?.type).toBe("message_complete");
+    });
+
+    it("does NOT call recordUsage when no context is set", async () => {
+      mockRecordUsage.mockResolvedValue({ ok: true, data: { id: "rec-1" } });
+
+      transformer.transform(
+        makeRaw("session.event.finish", {
+          usage: { promptTokens: 1000, completionTokens: 500, model: "claude-sonnet-4" },
+        }),
+      );
+
+      await Promise.resolve(); // flush microtasks
+      expect(mockRecordUsage).not.toHaveBeenCalled();
+    });
+
+    it("calls recordUsage fire-and-forget when context and usage data present", async () => {
+      mockRecordUsage.mockResolvedValue({ ok: true, data: { id: "rec-1" } });
+
+      const ctx = { projectId: "proj-1", userId: "user-1", sessionId: "sess-abc" };
+      const txfm = new EventTransformer(ctx);
+
+      txfm.transform(
+        makeRaw("session.event.finish", {
+          agentName: "moheng",
+          usage: { promptTokens: 1000, completionTokens: 500, model: "claude-sonnet-4" },
+        }),
+      );
+
+      // Allow async side-effect to settle
+      await new Promise((r) => setTimeout(r, 0));
+
+      expect(mockRecordUsage).toHaveBeenCalledWith(
+        expect.objectContaining({
+          projectId: "proj-1",
+          userId: "user-1",
+          sessionId: "sess-abc",
+          promptTokens: 1000,
+          completionTokens: 500,
+          model: "claude-sonnet-4",
+          agentName: "moheng",
+        }),
+      );
+    });
+
+    it("does NOT call recordUsage when usage has no promptTokens", async () => {
+      mockRecordUsage.mockResolvedValue({ ok: true, data: { id: "rec-1" } });
+
+      const ctx = { projectId: "proj-1", userId: "user-1" };
+      const txfm = new EventTransformer(ctx);
+
+      txfm.transform(makeRaw("session.event.finish", { usage: { model: "claude-sonnet-4" } }));
+
+      await new Promise((r) => setTimeout(r, 0));
+      expect(mockRecordUsage).not.toHaveBeenCalled();
+    });
+
+    it("silently ignores recordUsage failures (fire-and-forget)", async () => {
+      mockRecordUsage.mockRejectedValue(new Error("DB down"));
+
+      const ctx = { projectId: "proj-1", userId: "user-1" };
+      const txfm = new EventTransformer(ctx);
+
+      // Should not throw
+      expect(() => {
+        txfm.transform(
+          makeRaw("session.event.finish", {
+            usage: { promptTokens: 100, completionTokens: 50, model: "gpt-4o" },
+          }),
+        );
+      }).not.toThrow();
+
+      await new Promise((r) => setTimeout(r, 0));
+      // No unhandled rejection — test passes if we reach here
+    });
+
+    it("does NOT call recordUsage for non-message_complete events", async () => {
+      mockRecordUsage.mockResolvedValue({ ok: true, data: { id: "rec-1" } });
+
+      const ctx = { projectId: "proj-1", userId: "user-1" };
+      const txfm = new EventTransformer(ctx);
+
+      txfm.transform(
+        makeRaw("session.event.part.text", {
+          usage: { promptTokens: 100, completionTokens: 50 },
+        }),
+      );
+
+      await new Promise((r) => setTimeout(r, 0));
+      expect(mockRecordUsage).not.toHaveBeenCalled();
     });
   });
 });

@@ -19,6 +19,7 @@ import { createProjectRoutes } from "./routes/projects.js";
 import { createChatRoutes } from "./routes/chat.js";
 import { createUserRoutes } from "./routes/user.js";
 import { createPanelRoutes } from "./routes/panel/index.js";
+import { createUsageRoutes } from "./routes/usage.js";
 
 /** Hono Variables injected by middleware */
 type AppVariables = {
@@ -64,6 +65,7 @@ export function createApp(config: AppConfig = {}) {
   app.route("/api/chat", createChatRoutes());
   app.route("/api/projects", createProjectRoutes());
   app.route("/api/projects/:id", createPanelRoutes());
+  app.route("/api/projects/:id/usage", createUsageRoutes());
   app.route("/api/user", createUserRoutes());
 
   // ── 全局错误处理 ────────────────────────────────────────

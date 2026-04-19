@@ -1,11 +1,11 @@
 /**
  * V2 SSE event type definitions
  *
- * 14 event types: 8 general + 3 chapter-specific + 3 brainstorm-specific
+ * 15 event types: 8 general + 3 chapter-specific + 3 brainstorm-specific + 1 usage
  * These are the event types sent from server to browser via Server-Sent Events.
  */
 
-/** V2 SSE event types — 14 种 */
+/** V2 SSE event types — 15 种 */
 export type SSEEventType =
   | "text" // 墨衡流式文本
   | "tool_call" // Agent 调用 MCP 工具
@@ -15,6 +15,7 @@ export type SSEEventType =
   | "subtask_end" // 子 Agent 完成
   | "error" // 错误
   | "interaction_mode" // 需要用户决策
+  | "message_complete" // 消息完成（含 usage 数据）
   | "chapter.start" // 章节写作开始
   | "chapter.token" // 章节文字追加
   | "chapter.complete" // 章节写作完成
@@ -22,7 +23,7 @@ export type SSEEventType =
   | "brainstorm.converge" // 脑暴聚焦
   | "brainstorm.crystallize"; // 脑暴结晶
 
-/** All 14 event type values as a readonly array (useful for iteration/validation) */
+/** All 15 event type values as a readonly array (useful for iteration/validation) */
 export const SSE_EVENT_TYPES: ReadonlyArray<SSEEventType> = [
   "text",
   "tool_call",
@@ -32,6 +33,7 @@ export const SSE_EVENT_TYPES: ReadonlyArray<SSEEventType> = [
   "subtask_end",
   "error",
   "interaction_mode",
+  "message_complete",
   "chapter.start",
   "chapter.token",
   "chapter.complete",
