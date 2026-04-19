@@ -252,6 +252,7 @@ DB 枚举 `characterRoleEnum`（`packages/core/src/db/schema/enums.ts`）缺少 
 - 阻塞 Next.js 启动（不能在模块顶层 await）
 - 直接调 LLM Provider（必须通过 OpenCode SDK）
 - 依赖方向反转（只能 web/api-server → core，不能反向）
+- 单文件超过 500 行（提示词/Agent MD 文件除外）。超出时按职责拆分为多个模块文件
 
 ### 测试
 
