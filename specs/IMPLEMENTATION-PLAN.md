@@ -379,8 +379,8 @@ $env:GIT_COMMITTER_EMAIL='swim1986@126.com'
 | 0 | 一致性审查修复 | ✅ | `5e1e962` |
 | 0 | Per-spec 审查修复 | ✅ | `5b487fe` |
 | 0 | 题材技法管理设计 | ✅ | `a14c9d2` |
-| 0 | 文档一致性修复 | ✅ | 待 commit |
-| 0 | V1 代码清理 | ⏳ | — |
+| 0 | 文档一致性修复 | ✅ | `eb7a191` |
+| 0 | V1 代码清理 | ✅ | `2bbfc52` |
 | 1.1 | database schema migration | ⏳ | — |
 | 1.2 | infrastructure Docker + 连接 | ⏳ | — |
 | 1.3 | auth 认证系统 | ⏳ | — |

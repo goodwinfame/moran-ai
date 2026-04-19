@@ -15,7 +15,7 @@ export const projects = pgTable("projects", {
   toneDescription: text("tone_description"),
   writingStrategy: varchar("writing_strategy", { length: 50 }),
   styleId: varchar("style_id", { length: 100 }),
-  status: projectStatusEnum("status").default("planning"),
+  status: projectStatusEnum("status").default("brainstorm"),
   currentChapter: integer("current_chapter").default(0),
   currentArc: integer("current_arc").default(0),
   totalWordCount: integer("total_word_count").default(0),

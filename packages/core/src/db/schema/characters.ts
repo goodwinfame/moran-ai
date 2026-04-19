@@ -20,6 +20,8 @@ export const characters = pgTable(
     firstAppearance: integer("first_appearance"),
     arc: text("arc"),
     profileContent: text("profile_content"),
+    wound: text("wound"),
+    designTier: text("design_tier"),
     createdAt: timestamp("created_at", { withTimezone: true }).defaultNow(),
     updatedAt: timestamp("updated_at", { withTimezone: true }).defaultNow(),
   },

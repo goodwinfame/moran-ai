@@ -8,6 +8,13 @@
       "when": 1776357634191,
       "tag": "0000_clammy_robbie_robertson",
       "breakpoints": true
+    },
+    {
+      "idx": 1,
+      "version": "7",
+      "when": 1776587601653,
+      "tag": "0001_nice_blindfold",
+      "breakpoints": true
     }
   ]
 }

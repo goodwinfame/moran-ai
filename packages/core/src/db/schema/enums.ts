@@ -1,8 +1,8 @@
 import { pgEnum } from "drizzle-orm/pg-core";
 
-export const projectStatusEnum = pgEnum("project_status", ["planning", "intent", "world", "characters", "style", "outline", "ready", "active"]);
+export const projectStatusEnum = pgEnum("project_status", ["brainstorm", "world", "character", "outline", "writing", "completed"]);
 export const chapterStatusEnum = pgEnum("chapter_status", ["draft", "reviewing", "archived", "dirty"]);
-export const characterRoleEnum = pgEnum("character_role", ["protagonist", "antagonist", "supporting", "minor"]);
+export const characterRoleEnum = pgEnum("character_role", ["protagonist", "deuteragonist", "antagonist", "supporting", "minor"]);
 export const arcTypeEnum = pgEnum("arc_type", ["positive", "negative", "flat", "corruption"]);
 export const plotThreadStatusEnum = pgEnum("plot_thread_status", ["planted", "developing", "resolved", "stale"]);
 export const significanceEnum = pgEnum("significance", ["minor", "moderate", "major", "critical"]);
