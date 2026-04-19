@@ -1,12 +1,15 @@
 "use client";
 
-import React, { useEffect } from "react";
+import React, { useEffect, useState } from "react";
 import { useChatStore } from "@/stores/chat-store";
 import { useSSEStore } from "@/stores/sse-store";
 import { api } from "@/lib/api";
 import { ChatNavBar } from "./ChatNavBar";
 import { MessageList } from "./MessageList";
 import { ChatInput } from "./ChatInput";
+import { AgentStatusBar } from "./AgentStatusBar";
+import { AgentDrawer } from "./AgentDrawer";
+import { QuickActions } from "./QuickActions";
 
 interface ChatPanelProps {
   projectId: string;
@@ -15,8 +18,21 @@ interface ChatPanelProps {
 export function ChatPanel({ projectId }: ChatPanelProps) {
   const loadHistory = useChatStore((state) => state.loadHistory);
   const clearMessages = useChatStore((state) => state.clearMessages);
+  const sendMessage = useChatStore((state) => state.sendMessage);
   const connectSSE = useSSEStore((state) => state.connect);
   const disconnectSSE = useSSEStore((state) => state.disconnect);
+
+  const [agentDrawerOpen, setAgentDrawerOpen] = useState(false);
+  const [selectedAgentId, setSelectedAgentId] = useState<string | null>(null);
+
+  const handleAgentClick = (agentId: string) => {
+    setSelectedAgentId(agentId);
+    setAgentDrawerOpen(true);
+  };
+
+  const handleQuickAction = (text: string) => {
+    sendMessage(projectId, text);
+  };
 
   useEffect(() => {
     loadHistory(projectId);
@@ -48,13 +64,16 @@ export function ChatPanel({ projectId }: ChatPanelProps) {
       <ChatNavBar projectId={projectId} />
       <MessageList />
 
-      {/* AgentStatusBar placeholder — Phase 5.2 Agent C */}
-      <div id="agent-status-bar-slot" />
+      <AgentStatusBar onAgentClick={handleAgentClick} />
 
       <ChatInput projectId={projectId} />
 
-      {/* QuickActions placeholder — Phase 5.2 Agent C */}
-      <div id="quick-actions-slot" />
+      <QuickActions projectId={projectId} onSendMessage={handleQuickAction} />
+
+      <AgentDrawer
+        agentId={agentDrawerOpen ? selectedAgentId : null}
+        onClose={() => setAgentDrawerOpen(false)}
+      />
     </div>
   );
 }

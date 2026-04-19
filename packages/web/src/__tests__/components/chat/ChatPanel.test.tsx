@@ -13,6 +13,22 @@ vi.mock("@/components/chat/ChatNavBar", () => ({
   ChatNavBar: () => null,
 }));
 
+vi.mock("@/components/chat/AgentStatusBar", () => ({
+  AgentStatusBar: (props: { onAgentClick?: (id: string) => void }) => (
+    <div data-testid="agent-status-bar" onClick={() => props.onAgentClick?.("test-agent")} />
+  ),
+}));
+
+vi.mock("@/components/chat/AgentDrawer", () => ({
+  AgentDrawer: () => null,
+}));
+
+vi.mock("@/components/chat/QuickActions", () => ({
+  QuickActions: (props: { onSendMessage?: (text: string) => void }) => (
+    <div data-testid="quick-actions" onClick={() => props.onSendMessage?.("test msg")} />
+  ),
+}));
+
 // ── Hoisted mocks (must be defined before vi.mock factories run) ──────────────
 
 const { mockApiGet, mockConnect, mockDisconnect } = vi.hoisted(() => ({
@@ -113,5 +129,20 @@ describe("ChatPanel", () => {
 
     await new Promise((r) => setTimeout(r, 20));
     expect(mockConnect).not.toHaveBeenCalled();
+  });
+
+  it("renders AgentStatusBar", () => {
+    render(<ChatPanel projectId="test-id" />);
+    expect(screen.getByTestId("agent-status-bar")).toBeDefined();
+  });
+
+  it("renders QuickActions", () => {
+    render(<ChatPanel projectId="test-id" />);
+    expect(screen.getByTestId("quick-actions")).toBeDefined();
+  });
+
+  it("agent-status-bar-slot placeholder is removed", () => {
+    render(<ChatPanel projectId="test-id" />);
+    expect(document.querySelector("#agent-status-bar-slot")).toBeNull();
   });
 });

@@ -1,13 +1,25 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
-import { render, screen, fireEvent } from "@testing-library/react";
+import { render, screen, fireEvent, waitFor } from "@testing-library/react";
 import * as React from "react";
 import { ExportDialog } from "../../../components/settings/ExportDialog";
+
+const mockApiPost = vi.fn();
+vi.mock("@/lib/api", () => ({
+  api: { post: (...args: unknown[]) => mockApiPost(...args) },
+}));
 
 describe("ExportDialog", () => {
   const onClose = vi.fn();
 
   beforeEach(() => {
     vi.clearAllMocks();
+    // Default: successful export
+    mockApiPost.mockResolvedValue({
+      data: { content: "chapter content", filename: "export.txt" },
+    });
+    // Stub browser download APIs
+    global.URL.createObjectURL = vi.fn(() => "blob:mock-url");
+    global.URL.revokeObjectURL = vi.fn();
   });
 
   it("renders when open", () => {
@@ -33,10 +45,36 @@ describe("ExportDialog", () => {
     expect(onClose).toHaveBeenCalled();
   });
 
-  it("export button closes dialog", () => {
+  it("export button closes dialog", async () => {
     render(<ExportDialog open={true} onClose={onClose} projectId="test-project" />);
     const exportBtn = screen.getByRole("button", { name: /开始导出/i });
     fireEvent.click(exportBtn);
-    expect(onClose).toHaveBeenCalled();
+    await waitFor(() => expect(onClose).toHaveBeenCalled());
+  });
+
+  it("export button calls API and triggers download", async () => {
+    render(<ExportDialog open={true} onClose={onClose} projectId="proj-123" />);
+    const exportBtn = screen.getByRole("button", { name: /开始导出/i });
+    fireEvent.click(exportBtn);
+
+    await waitFor(() => {
+      expect(mockApiPost).toHaveBeenCalledWith(
+        "/api/projects/proj-123/export",
+        expect.objectContaining({ format: expect.any(String) }),
+      );
+    });
+    await waitFor(() => expect(onClose).toHaveBeenCalled());
+  });
+
+  it("shows error on API failure", async () => {
+    mockApiPost.mockRejectedValue(new Error("Network error"));
+    render(<ExportDialog open={true} onClose={onClose} projectId="proj-123" />);
+    const exportBtn = screen.getByRole("button", { name: /开始导出/i });
+    fireEvent.click(exportBtn);
+
+    await waitFor(() => {
+      expect(screen.getByText("导出失败，请重试")).toBeDefined();
+    });
+    expect(onClose).not.toHaveBeenCalled();
   });
 });

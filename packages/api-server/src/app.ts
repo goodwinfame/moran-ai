@@ -21,6 +21,7 @@ import { createUserRoutes } from "./routes/user.js";
 import { createPanelRoutes } from "./routes/panel/index.js";
 import { createUsageRoutes } from "./routes/usage.js";
 import { createLogRoutes } from "./routes/logs.js";
+import { createExportRoutes } from "./routes/export.js";
 
 /** Hono Variables injected by middleware */
 type AppVariables = {
@@ -68,6 +69,7 @@ export function createApp(config: AppConfig = {}) {
   app.route("/api/projects/:id", createPanelRoutes());
   app.route("/api/projects/:id/usage", createUsageRoutes());
   app.route("/api/projects/:id/logs", createLogRoutes());
+  app.route("/api/projects/:id/export", createExportRoutes());
   app.route("/api/user", createUserRoutes());
 
   // ── 全局错误处理 ────────────────────────────────────────

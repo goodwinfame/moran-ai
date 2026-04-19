@@ -4,6 +4,11 @@ import React from "react";
 import { ChatInput } from "@/components/chat/ChatInput";
 import { useChatStore } from "@/stores/chat-store";
 
+vi.mock("@/components/chat/FileUploadDialog", () => ({
+  FileUploadDialog: ({ open }: { open: boolean }) =>
+    open ? <div data-testid="file-upload-dialog" /> : null,
+}));
+
 describe("ChatInput", () => {
   beforeEach(() => {
     useChatStore.setState({
@@ -55,5 +60,18 @@ describe("ChatInput", () => {
     // The command palette should show
     expect(screen.getByText("写作")).toBeDefined();
     expect(screen.getByText("审校")).toBeDefined();
+  });
+
+  it("📎 button opens FileUploadDialog", () => {
+    render(<ChatInput projectId="test" />);
+    // FileUploadDialog should not be visible initially
+    expect(screen.queryByTestId("file-upload-dialog")).toBeNull();
+
+    // Find the attach button (has an Icon with attach_file, no accessible name — find by position)
+    const buttons = screen.getAllByRole("button");
+    const attachButton = buttons[0]!; // first button is the 📎 attach button
+    fireEvent.click(attachButton);
+
+    expect(screen.getByTestId("file-upload-dialog")).toBeDefined();
   });
 });

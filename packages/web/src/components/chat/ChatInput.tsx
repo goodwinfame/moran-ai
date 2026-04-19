@@ -5,6 +5,7 @@ import { useChatStore } from "@/stores/chat-store";
 import { Icon } from "@/components/ui/icon";
 import { CommandPalette } from "./CommandPalette";
 import { QuestionPanel } from "./QuestionPanel";
+import { FileUploadDialog } from "./FileUploadDialog";
 
 interface ChatInputProps {
   projectId: string;
@@ -14,6 +15,7 @@ interface ChatInputProps {
 export function ChatInput({ projectId, disabled }: ChatInputProps) {
   const [text, setText] = useState("");
   const [showCommands, setShowCommands] = useState(false);
+  const [fileDialogOpen, setFileDialogOpen] = useState(false);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
 
   const inputMode = useChatStore((state) => state.inputMode);
@@ -103,9 +105,7 @@ export function ChatInput({ projectId, disabled }: ChatInputProps) {
       <div className="relative flex items-center bg-background border border-border rounded-xl focus-within:ring-2 focus-within:ring-ring/20 focus-within:outline-none transition-shadow">
         <button
           className="absolute left-3 top-3 text-muted-foreground hover:text-primary transition-colors"
-          onClick={() => {
-            // Attachment handled by Agent C
-          }}
+          onClick={() => setFileDialogOpen(true)}
           disabled={disabled}
         >
           <Icon name="attach_file" size={20} />
@@ -130,6 +130,16 @@ export function ChatInput({ projectId, disabled }: ChatInputProps) {
           <Icon name="send" size={20} />
         </button>
       </div>
+
+      <FileUploadDialog
+        open={fileDialogOpen}
+        onClose={() => setFileDialogOpen(false)}
+        onUpload={(file) => {
+          // MVP: send file info as text message
+          sendMessage(projectId, `[附件] ${file.name} (${(file.size / 1024).toFixed(1)}KB)`);
+          setFileDialogOpen(false);
+        }}
+      />
     </div>
   );
 }

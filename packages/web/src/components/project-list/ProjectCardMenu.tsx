@@ -10,6 +10,7 @@ import { Icon } from "@/components/ui/icon";
 import { ProjectItem, useProjectListStore } from "@/stores/project-list-store";
 import { ConfirmDialog } from "@/components/shared/ConfirmDialog";
 import { InlineEditor } from "@/components/shared/InlineEditor";
+import { ExportDialog } from "@/components/settings/ExportDialog";
 
 interface ProjectCardMenuProps {
   project: ProjectItem;
@@ -21,6 +22,7 @@ export function ProjectCardMenu({ project, position, onClose }: ProjectCardMenuP
   const [isRenaming, setIsRenaming] = useState(false);
   const [showArchiveConfirm, setShowArchiveConfirm] = useState(false);
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
+  const [showExport, setShowExport] = useState(false);
   const { pinProject, renameProject, archiveProject, deleteProject } = useProjectListStore();
 
   const handleRenameSave = async (newTitle: string) => {
@@ -37,8 +39,7 @@ export function ProjectCardMenu({ project, position, onClose }: ProjectCardMenuP
   };
 
   const handleExport = () => {
-    console.log("Exporting project:", project.id);
-    onClose();
+    setShowExport(true);
   };
 
   if (isRenaming) {
@@ -132,7 +133,7 @@ export function ProjectCardMenu({ project, position, onClose }: ProjectCardMenuP
         open={showDeleteConfirm}
         onOpenChange={setShowDeleteConfirm}
         title="警告：永久删除"
-        description={`您即将永久删除项目“${project.title}”。此操作不可逆，所有章节、角色和设定数据将被销毁。`}
+        description={`您即将永久删除项目"${project.title}"。此操作不可逆，所有章节、角色和设定数据将被销毁。`}
         confirmLabel="永久删除"
         variant="destructive"
         requireInput={project.title}
@@ -141,6 +142,12 @@ export function ProjectCardMenu({ project, position, onClose }: ProjectCardMenuP
           setShowDeleteConfirm(false);
           onClose();
         }}
+      />
+
+      <ExportDialog
+        open={showExport}
+        onClose={() => { setShowExport(false); onClose(); }}
+        projectId={project.id}
       />
     </>
   );
