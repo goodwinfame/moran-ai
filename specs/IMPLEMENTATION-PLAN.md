@@ -392,7 +392,7 @@ $env:GIT_COMMITTER_EMAIL='swim1986@126.com'
 | 3.2 | Agent 配置 + 种子数据 + MCP 连接配置 | ✅ | `78918db` |
 | 3.3 | OpenCode 集成配置（Session Manager + Docker mounts, 548 tests） | ✅ | `3453b55` |
 | 4.1 | API 路由（20 endpoints, 77 tests, 625 total） | ✅ | `7b12ae5` |
-| 4.2 | SSE 实时推送 | ⏳ | — |
+| 4.2 | SSE 实时推送（14 event types, server+frontend, 127 tests, 751 total） | ✅ | `58c2637` |
 | 5.1 | 项目列表页 | ⏳ | — |
 | 5.2 | 聊天窗口 | ⏳ | — |
 | 5.3 | 信息面板（8 Tab） | ⏳ | — |
