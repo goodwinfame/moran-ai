@@ -4,44 +4,28 @@
 
 ---
 
-## 包内容
+## V2 包职责
 
 | 模块 | 说明 |
 |------|------|
-| `src/orchestrator/` | Orchestrator — 写作流程状态机 |
+| `src/db/` | Drizzle ORM schema + migrations（PostgreSQL） |
+| `src/types/` | 共享类型定义 |
 | `src/events/` | EventBus — 项目内事件总线 |
-| `src/bridge/` | SessionProjectBridge — **M1.4 已集成，支持 BridgeTransport 依赖注入** |
-| `src/agents/` | Agent 类型定义 + 注册表 |
-| `src/jiangxin/` | JiangxinEngine — 世界观/角色/大纲对齐引擎 |
-| `src/dianjing/` | DianjingEngine — 文学诊断引擎 |
-| `src/shuchong/` | ShuchongEngine — 读者体验评审引擎 |
-| `src/xidian/` | XidianEngine — 作品分析引擎 |
-| `src/review/` | ReviewEngine — 三轮审校引擎 |
-| `src/style/` | StyleManager — 文风管理 |
-| `src/logger/` | createLogger() 工具 |
+| `src/logger/` | createLogger() 工具（pino） |
 
-## Bridge 状态（✅ M1.4 已完成）
+## V2 变更
 
-`src/bridge/bridge.ts` 中的 `SessionProjectBridge` 已完成 M1.4 集成：
+V1 的 Agent 引擎（lingxi, jiangxin, zaishi, xidian 等）已全部删除。
+V2 中 Agent 逻辑通过 OpenCode config 定义，不在 core 中实现。
 
-- **依赖注入模式**：构造函数接受可选 `BridgeTransport`
-  - 有 transport → 真实调用 OpenCode SDK（`ensureSession` + `invokeAgent`）
-  - 无 transport → placeholder 响应（测试兼容）
-- `ensureSession()` — 通过 transport 调用 OpenCode SDK `session.create()`
-- `invokeAgent({ agentId, message, stream?, temperature? })` → 返回 `AgentResponse { content, sessionId, usage, agentId }`
-- `BridgeTransport` 接口定义在 core，实现（`OpenCodeTransport`）在 `packages/server/src/opencode/bridge-transport.ts`
-
-**所有引擎都通过 Bridge 调用 AI**，统一入口：`bridge.invokeAgent()`。
-
-## 里程碑
-
-| 里程碑 | Bridge 状态 |
-|--------|------------|
-| M1.1–1.3 | ✅ 框架定义 |
-| M1.4 | ✅ 已集成 OpenCode SDK，支持 BridgeTransport 依赖注入 |
+保留模块：
+- **db**: 数据库 schema 是共享资源，V2 会在此基础上演进
+- **events**: 事件总线是通用模式，V2 的 SSE 推送复用此模块
+- **logger**: 通用日志工具
+- **types**: 共享类型定义
 
 ## 修改注意
 
-- `EventBus` 和 `Orchestrator` 有完整测试，改前先跑 `pnpm test`
+- `EventBus` 有完整测试，改前先跑 `pnpm test`
 - 导出路径统一在 `package.json` 的 `exports` 字段中声明
 - 不能引入 server 或 web 的依赖（单向依赖：web/server → core）
