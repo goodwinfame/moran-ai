@@ -114,7 +114,7 @@ tools:
   - project_update
   - gate_check
   - brainstorm_read
-  - world_setting_read
+  - world_read
   - character_read
   - style_read
   - outline_read          # 仅 read 类工具 + gate_check + dispatch
@@ -194,7 +194,7 @@ system_prompt: |
   - 根据创意简报，构建开放式子系统
   - 子系统分类由题材决定（仙侠→力量体系/宗门势力/种族…；都市→社会背景/势力关系…）
   - 不硬编码分类，根据题材动态创建
-  - 执行自洽检查（world_consistency_check）
+  - 执行自洽检查（world_check）
 
   ### 角色设计
   - 五维心理模型：GHOST→WOUND→LIE→WANT↔NEED
@@ -217,27 +217,22 @@ tools:
   - project_read
   - gate_check
   - brainstorm_read
-  - world_setting_create
-  - world_setting_read
-  - world_setting_update
-  - world_subsystem_create
-  - world_subsystem_update
-  - world_consistency_check
-  - location_create
-  - location_update
-  - glossary_create
-  - glossary_update
+  - world_create          # type: setting | subsystem | location
+  - world_read
+  - world_update          # type: setting | subsystem | location
+  - world_delete          # type: setting | subsystem | location
+  - world_check           # 一致性校验
   - character_create
   - character_read
   - character_update
-  - character_state_update
+  - character_state_create
   - relationship_create
   - relationship_update
   - style_create
   - style_read
-  - outline_create
+  - style_update
+  - outline_create        # type: synopsis | arc_detail
   - outline_update
-  - arc_detail_create
 ```
 
 #### 2.2.4 执笔配置
@@ -257,12 +252,12 @@ system_prompt: |
   2. 阅读 Brief + 前文摘要 + 角色状态 + 文风配置
   3. 参考写作教训（lessons），避免已知问题
   4. 按文风生成章节内容
-  5. 调用 chapter_write 保存
+   5. 调用 chapter_create 保存
 
   ## 修订流程
   1. 接收审校反馈（issues 列表）
   2. 针对性修改（不重写无问题的段落）
-  3. 调用 chapter_revise 保存修订版
+  3. 调用 chapter_update 保存修订版
 
   ## 文风系统
   当前风格配置由 style_read 返回，包含：
@@ -289,9 +284,8 @@ system_prompt: |
 tools:
   - project_read
   - context_assemble
-  - chapter_write
-  - chapter_revise
-  - chapter_version_create
+  - chapter_create
+  - chapter_update
   - style_read
   - lesson_read
 ```
@@ -345,12 +339,9 @@ system_prompt: |
   - 审校模型族应与执笔不同（减少同源偏差），由系统层面控制
 tools:
   - project_read
-  - review_round1
-  - review_round2
-  - review_round3
-  - review_round4
+  - review_execute        # round=1/2/3/4，轮次由参数区分
   - character_read
-  - world_setting_read
+  - world_read
   - style_read
 ```
 
@@ -366,10 +357,10 @@ tools:
   - project_read
   - chapter_archive
   - summary_create
+  - thread_create
   - thread_update
-  - timeline_event_create
-  - arc_summary_create
-  - character_state_snapshot
+  - timeline_create
+  - character_state_create
 
 # agents/bowen.yaml — 博闻（知识库）
 name: 博闻
@@ -379,13 +370,12 @@ temperature: 0.3
 tools:
   - project_read
   - knowledge_read
-  - knowledge_write
-  - lesson_learn
+  - knowledge_create
+  - knowledge_update        # 含 glossary（category="glossary"）
+  - lesson_create
   - lesson_read
-  - world_setting_read
+  - world_read
   - character_read
-  - glossary_create
-  - glossary_update
 
 # agents/xidian.yaml — 析典（分析）
 name: 析典
@@ -394,12 +384,12 @@ model: claude-sonnet-4-20250514
 temperature: 0.4
 tools:
   - project_read
-  - analysis_run
+  - analysis_execute
   - analysis_read
   - character_read
-  - world_setting_read
+  - world_read
   - style_read
-  - knowledge_write       # 外部作品分析时，将可操作经验写入知识库
+  - knowledge_create        # 外部作品分析时，将可操作经验写入知识库
 ```
 
 #### 2.2.7 可选 Agent 配置（摘要）
@@ -423,7 +413,7 @@ temperature: 0.8
 tools:
   - project_read
   - brainstorm_read
-  - world_setting_read
+  - world_read
   - character_read
 ```
 
@@ -493,13 +483,13 @@ OpenCode 原生 `SubtaskPart` 机制实现委派：
 |----------|-------------|-----------|
 | 灵犀 | `project_read` | 项目基本信息 + 用户原始想法 |
 | 匠心(世界) | `brainstorm_read` | 创意简报 + 已有世界设定 |
-| 匠心(角色) | `brainstorm_read` + `world_setting_read` | 创意简报 + 世界设定 + 已有角色 |
-| 匠心(大纲) | `brainstorm_read` + `world_setting_read` + `character_read` | 创意简报 + 世界设定 + 角色表 |
+| 匠心(角色) | `brainstorm_read` + `world_read` | 创意简报 + 世界设定 + 已有角色 |
+| 匠心(大纲) | `brainstorm_read` + `world_read` + `character_read` | 创意简报 + 世界设定 + 角色表 |
 | 执笔(写作) | `context_assemble` | Brief + 前文摘要 + 世界设定 + 角色状态 + 伏笔 + 文风 + 题材技法 + 教训 |
 | 执笔(修订) | `context_assemble` (mode: "revise") | 章节内容 + 审校反馈 + 文风 + 教训 |
-| 明镜 | `character_read` + `world_setting_read` | 章节内容 + 角色设定 + 世界设定 + 前文摘要 + 通过标准 |
+| 明镜 | `character_read` + `world_read` | 章节内容 + 角色设定 + 世界设定 + 前文摘要 + 通过标准 |
 | 载史 | `character_read` | 章节内容 + 角色表 + 伏笔列表 + 时间线 |
-| 析典 | `character_read` + `world_setting_read` | 多章节内容 + 角色表 + 世界设定 + 弧段大纲 |
+| 析典 | `character_read` + `world_read` | 多章节内容 + 角色表 + 世界设定 + 弧段大纲 |
 
 `context_assemble` 是核心工具，内部实现多表联查 + token budget 控制：
 
@@ -590,7 +580,7 @@ function resolveTemperature(chapterType: string): number {
 #### 审校工具链
 
 ```
-review_round1(chapterId) → review_round2(chapterId) → review_round3(chapterId) → review_round4(chapterId)
+review_execute(chapterId, round=1) → review_execute(chapterId, round=2) → review_execute(chapterId, round=3) → review_execute(chapterId, round=4)
 ```
 
 每轮工具的实现模式：
@@ -598,56 +588,38 @@ review_round1(chapterId) → review_round2(chapterId) → review_round3(chapterI
 ```typescript
 // src/tools/review.ts（已在 opencode-integration DESIGN 中规划文件位置）
 server.tool(
-  "review_round1",
-  "AI 味检测：评估章节的 Burstiness 和模板化程度",
-  { projectId: z.string().uuid(), chapterId: z.string().uuid() },
-  async ({ projectId, chapterId }): Promise<MCPToolResult> => {
-    // 门禁：章节必须存在 + 未归档
-    const gate = await checker.check(projectId, "review_round1", { chapterId });
+  "review_execute",
+  "执行审校轮次：round=1 AI味检测 / round=2 逻辑一致性 / round=3 文学质量 / round=4 读者体验",
+  { projectId: z.string().uuid(), chapterId: z.string().uuid(), round: z.number().min(1).max(4) },
+  async ({ projectId, chapterId, round }): Promise<MCPToolResult> => {
+    // 门禁：章节必须存在 + 未归档 + 前置轮次已完成
+    const gate = await checker.check(projectId, "review", { chapterId, round });
     if (!gate.ok) return gate;
 
     // 读取章节内容
     const chapter = await getChapter(chapterId);
 
-    // Round 1 评分逻辑由明镜 Agent 完成
-    // 此工具仅负责：保存评分结果 + 返回格式化数据
+    // 按轮次组装不同的参照数据
+    const dimensions = ["AI味检测", "逻辑一致性", "文学质量", "读者体验"];
+    let referenceData = {};
 
-    // 返回格式
+    if (round >= 2) {
+      // Round 2+ 需要角色/世界设定/前文摘要
+      const characters = await getCharacters(projectId);
+      const worldSettings = await getWorldSettings(projectId);
+      const previousSummary = await getPreviousSummary(projectId, chapter.number);
+      referenceData = { characters, worldSettings, previousSummary };
+    }
+
     return {
       ok: true,
       data: {
-        round: 1,
-        dimension: "AI味检测",
+        round,
+        dimension: dimensions[round - 1],
         score: null,  // 由明镜 Agent 填写后通过 update 保存
         issues: [],
-        chapterContent: chapter.content,  // 传递给明镜
-      },
-    };
-  },
-);
-
-server.tool(
-  "review_round2",
-  "逻辑一致性检查：比对角色/世界/前文",
-  { projectId: z.string().uuid(), chapterId: z.string().uuid() },
-  async ({ projectId, chapterId }) => {
-    // 门禁：Round 1 已完成
-    const gate = await checker.check(projectId, "review_round2", { chapterId });
-    if (!gate.ok) return gate;
-
-    // 组装参照数据
-    const chapter = await getChapter(chapterId);
-    const characters = await getCharacters(projectId);
-    const worldSettings = await getWorldSettings(projectId);
-    const previousSummary = await getPreviousSummary(projectId, chapter.number);
-
-    return {
-      ok: true,
-      data: {
-        round: 2,
-        dimension: "逻辑一致性",
         chapterContent: chapter.content,
-        referenceData: { characters, worldSettings, previousSummary },
+        referenceData,
       },
     };
   },

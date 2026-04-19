@@ -40,54 +40,65 @@
   - `brainstorm_update`：更新脑暴
 - **验收**：每个工具有测试用例
 
-### T5: 实现世界观工具（10 个）
+### T5: 实现世界观工具（5 个）
 - **输出**：`src/tools/world.ts`
-  - `world_setting_create/read/update`
-  - `world_subsystem_create/update`
-  - `world_consistency_check`
-  - `location_create/update`
-  - `glossary_create/update`
+  - `world_create`：创建世界设定（type="setting" | "subsystem" | "location"）
+  - `world_read`：读取世界设定
+  - `world_update`：更新世界设定
+  - `world_delete`：删除世界设定
+  - `world_check`：世界观自洽性检查
 - **验收**：每个工具有测试用例，门禁（需创意简报）生效
 
-### T6: 实现角色工具（7 个）
-- **输出**：`src/tools/character.ts`
-  - `character_create/read/update`
-  - `character_state_update/snapshot`
-  - `relationship_create/update`
+### T6: 实现角色工具（9 个）
+- **输出**：
+  - `src/tools/character.ts`
+    - `character_create/read/update/delete`
+  - `src/tools/character-state.ts`
+    - `character_state_create`：创建角色状态快照（不可变）
+    - `character_state_read`：读取角色状态
+  - `src/tools/relationship.ts`
+    - `relationship_create/read/update`
 - **验收**：每个工具有测试用例，门禁（需世界设定）生效
 
-### T7: 实现写作工具（10 个）
-- **输出**：`src/tools/writing.ts`
-  - `style_create/read`
-  - `outline_create/update`
-  - `arc_detail_create`
-  - `context_assemble`（核心：组装写作上下文）
-  - `chapter_write/revise/version_create/archive`
+### T7: 实现写作准备 + 章节工具（11 个）
+- **输出**：
+  - `src/tools/style.ts`
+    - `style_create/read/update`
+  - `src/tools/outline.ts`
+    - `outline_create`（type="synopsis" | "arc_detail"）/ `outline_read` / `outline_update`
+  - `src/tools/context.ts`
+    - `context_assemble`（核心：组装写作上下文）
+  - `src/tools/chapter.ts`
+    - `chapter_create/read/update/archive`
 - **验收**：
   - `context_assemble` 正确组装 brief + world + characters + summary + style + lessons + threads
-  - `chapter_write` 门禁链完整检查（大纲 + Brief + 角色 + 文风）
+  - `chapter_create` 门禁链完整检查（大纲 + Brief + 角色 + 文风）
   - 每个工具有测试用例
 
-### T8: 实现审校工具（4 个）
+### T8: 实现审校工具（1 个）
 - **输出**：`src/tools/review.ts`
-  - `review_round1`（AI 味检测）
-  - `review_round2`（逻辑一致性）
-  - `review_round3`（文学质量）
-  - `review_round4`（读者体验）
-- **验收**：顺序依赖正确（Round 2 需 Round 1 完成），每轮有测试
+  - `review_execute`（round=1/2/3/4）
+    - round 1：AI 味检测
+    - round 2：逻辑一致性
+    - round 3：文学质量
+    - round 4：读者体验
+- **验收**：顺序依赖正确（round 2 需 round 1 完成），每轮有测试
 
-### T9: 实现归档工具（4 个）
-- **输出**：`src/tools/archive.ts`
-  - `summary_create`
-  - `thread_update`
-  - `timeline_event_create`
-  - `arc_summary_create`
+### T9: 实现归档工具（7 个）
+- **输出**：
+  - `src/tools/summary.ts`
+    - `summary_create/read`
+  - `src/tools/thread.ts`
+    - `thread_create/read/update`
+  - `src/tools/timeline.ts`
+    - `timeline_create/read`
 - **验收**：每个工具有测试用例，门禁（需审校通过）生效
 
-### T10: 实现知识库 + 分析工具（6 个）
+### T10: 实现知识库 + 分析工具（9 个）
 - **输出**：
-  - `src/tools/knowledge.ts`（knowledge_read/write, lesson_learn/read）
-  - `src/tools/analysis.ts`（analysis_run, analysis_read）
+  - `src/tools/knowledge.ts`（knowledge_create/read/update/delete）
+  - `src/tools/lesson.ts`（lesson_create/read/update）
+  - `src/tools/analysis.ts`（analysis_execute/read）
 - **验收**：每个工具有测试用例
 
 ### T11: MCP Server 集成 — 工具注册 + 启动入口
@@ -96,7 +107,7 @@
   - `src/tools/index.ts`（统一注册函数）
   - `src/server.ts`（完整 MCP Server）
   - `src/index.ts`（Stdio 传输启动）
-- **验收**：MCP Server 可启动，所有 47 个工具注册成功
+- **验收**：MCP Server 可启动，所有 48 个工具注册成功
 
 ### T12: Session Manager 增强
 - **输入**：`packages/server/src/opencode/manager.ts`

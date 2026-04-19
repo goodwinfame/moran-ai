@@ -111,15 +111,15 @@ gate_check("world_design"):
 匠心（幕后工作）:
   1. 读取创意简报 → MCP: brainstorm_read({ projectId })
   2. 设计基础世界观
-     → MCP: world_setting_create({ projectId, section: "base", content: ... })
+     → MCP: world_create({ projectId, type: "setting", section: "base", content: ... })
   3. 设计力量体系
-     → MCP: world_subsystem_create({ projectId, name: "power_system", content: ... })
+     → MCP: world_create({ projectId, type: "subsystem", name: "power_system", content: ... })
   4. 设计社会结构
-     → MCP: world_subsystem_create({ projectId, name: "social_structure", content: ... })
+     → MCP: world_create({ projectId, type: "subsystem", name: "social_structure", content: ... })
   5. 设计关键地点
-     → MCP: location_create({ projectId, name: "...", content: ... })
+     → MCP: world_create({ projectId, type: "location", name: "...", content: ... })
   6. 生成术语表
-     → MCP: glossary_create({ projectId, entries: [...] })
+     → MCP: knowledge_create({ projectId, category: "glossary", entries: [...] })
 
 墨衡: "世界观初稿已完成，请看右侧面板的 [设定] Tab。
        几个关键点需要你确认：
@@ -134,7 +134,7 @@ gate_check("world_design"):
 
 ```
 匠心（自洽检查）:
-  → MCP: world_consistency_check({ projectId })
+  → MCP: world_check({ projectId })
   → 检查项：
     - 力量等级与社会地位是否对应
     - 地点间距离与交通方式是否合理
@@ -160,11 +160,11 @@ gate_check("world_design"):
 
 | 数据 | 存储位置 | MCP 工具 |
 |------|----------|----------|
-| 基础世界设定 | `world_settings` 表 | `world_setting_create/update` |
-| 子系统（力量/社会/阵营…） | `world_settings` 表（按 section） | `world_subsystem_create/update` |
-| 地点体系 | `locations` + `location_connections` 表 | `location_create/update` |
-| 术语表 | `glossary_entries` 表 | `glossary_create/update` |
-| 自洽检查报告 | `project_documents` 表 | `document_save` |
+| 基础世界设定 | `world_settings` 表 | `world_create/update`（type="setting"） |
+| 子系统（力量/社会/阵营…） | `world_settings` 表（按 section） | `world_create/update`（type="subsystem"） |
+| 地点体系 | `locations` + `location_connections` 表 | `world_create/update`（type="location"） |
+| 术语表 | `glossary_entries` 表 | `knowledge_create/update`（category="glossary"） |
+| 自洽检查报告 | `project_documents` 表 | `world_check` |
 
 ---
 
@@ -277,8 +277,8 @@ gate_check("outline_design"):
      - 情感地雷（预埋爽点/泪点/笑点）
      - Plantser Brief（硬约束 / 软引导 / 自由区）
   
-  → MCP: outline_create({ projectId, synopsis, arcs: [...] })
-  → MCP: arc_detail_create({ projectId, arcIndex, chapters: [...] })
+   → MCP: outline_create({ projectId, type: "synopsis", synopsis, arcs: [...] })
+   → MCP: outline_create({ projectId, type: "arc_detail", arcIndex, chapters: [...] })
 ```
 
 #### Plantser Pipeline（三层 Brief）
@@ -350,10 +350,10 @@ gate_check("chapter_write"):
        - 高潮章节: 0.65-0.75
   
   3. 保存章节
-     → MCP: chapter_write({ projectId, chapterNumber: 1, title: "...", content: "..." })
+     → MCP: chapter_create({ projectId, chapterNumber: 1, title: "...", content: "..." })
   
   4. 更新角色状态
-     → MCP: character_state_update({ projectId, characterId, chapterNumber: 1, state: {...} })
+     → MCP: character_state_create({ projectId, characterId, chapterNumber: 1, state: {...} })
 
 墨衡: "第一章初稿已完成，共 3200 字。请看右侧面板的 [章节] Tab。
        要我直接送审校，还是你先看看？"
@@ -370,7 +370,7 @@ gate_check("chapter_write"):
   → 生成版本 A（标准温度）
   → 生成版本 B（偏高温度，更有创意）
   → 生成版本 C（偏低温度，更贴近大纲）
-  → MCP: chapter_version_create({ projectId, chapterNumber, version: "A/B/C", content: ... })
+   → MCP: chapter_create({ projectId, chapterNumber, variant: "A/B/C", content: ... })
 
 墨衡: "三个版本已生成。版本 A 更稳健，版本 B 有个意外的情节转折很有趣，
        版本 C 严格跟随大纲。你选哪个？"
@@ -524,15 +524,15 @@ sequenceDiagram
   M->>Z: SubtaskPart: 归档第 N 章
   Z->>MCP: summary_create(chapterNumber)
   MCP->>DB: INSERT chapter_summary
-  Z->>MCP: character_state_snapshot(chapterNumber)
+  Z->>MCP: character_state_create(chapterNumber)
   MCP->>DB: INSERT character_states
   Z->>MCP: thread_update(chapterNumber, threads)
   MCP->>DB: UPDATE plot_threads
-  Z->>MCP: timeline_event_create(chapterNumber, events)
+  Z->>MCP: timeline_create(chapterNumber, events)
   MCP->>DB: INSERT timeline_events
   
   alt 弧段最后一章
-    Z->>MCP: arc_summary_create(arcIndex)
+    Z->>MCP: summary_create(type="arc", arcIndex)
     MCP->>DB: INSERT arc_summary
   end
   

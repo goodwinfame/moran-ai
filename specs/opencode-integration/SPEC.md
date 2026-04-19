@@ -41,19 +41,20 @@ interface OpenCodeSessionManager {
 MCP Server 是一个独立进程/模块，暴露 47 个工具给 OpenCode 中运行的 LLM。
 工具通过 DB 操作实现，门禁逻辑内置于工具中。
 
-#### 工具分类（7 类，47 个）
+#### 工具分类（10 类，48 个）
 
 | 类别 | 工具数 | 工具列表 |
 |------|--------|----------|
-| 项目管理 | 3 | project_read, project_update, gate_check |
-| 灵感脑暴 | 3 | brainstorm_create, brainstorm_read, brainstorm_update |
-| 世界观 | 10 | world_setting_create/read/update, world_subsystem_create/update, world_consistency_check, location_create/update, glossary_create/update |
-| 角色 | 7 | character_create/read/update, character_state_update/snapshot, relationship_create/update |
-| 写作 | 10 | style_create/read, outline_create/update, arc_detail_create, context_assemble, chapter_write/revise/version_create/archive |
-| 审校 | 4 | review_round1/round2/round3/round4 |
-| 归档 | 4 | summary_create, thread_update, timeline_event_create, arc_summary_create |
-| 知识库 | 4 | knowledge_read/write, lesson_learn/read |
-| 分析 | 2 | analysis_run, analysis_read |
+| 项目管理 | 3 | project_read/update, gate_check |
+| 灵感脑暴 | 3 | brainstorm_create/read/update |
+| 世界观 | 5 | world_create/read/update/delete/check |
+| 角色 | 9 | character_create/read/update/delete, character_state_create/read, relationship_create/read/update |
+| 写作准备 | 7 | style_create/read/update, outline_create/read/update, context_assemble |
+| 章节写作 | 4 | chapter_create/read/update/archive |
+| 审校 | 1 | review_execute |
+| 归档 | 7 | summary_create/read, thread_create/read/update, timeline_create/read |
+| 知识库 | 7 | knowledge_create/read/update/delete, lesson_create/read/update |
+| 分析 | 2 | analysis_execute/read |
 
 #### 工具接口规范
 
@@ -122,8 +123,8 @@ interface MCPToolResult {
 | 匠心 | jiangxin | Claude Sonnet 4 | 0.5 | world_*, character_*, outline_*, style_* |
 | 执笔 | zhibi | Claude Sonnet 4 | 0.5-0.85 | context_assemble, chapter_*, style_read |
 | 明镜 | mingjing | Claude Sonnet 4 | 0.2 | review_* |
-| 载史 | zaishi | Claude Haiku/Sonnet | 0.3 | summary_*, thread_*, timeline_*, arc_summary_* |
-| 博闻 | bowen | Claude Haiku | 0.3 | knowledge_*, lesson_*, world_consistency_check |
+| 载史 | zaishi | Claude Haiku/Sonnet | 0.3 | summary_*, thread_*, timeline_* |
+| 博闻 | bowen | Claude Haiku | 0.3 | knowledge_*, lesson_*, world_check |
 | 析典 | xidian | Claude Sonnet 4 | 0.4 | analysis_* |
 | 书虫 | shuchong | Claude Haiku | 0.7 | 无写入工具（只读） |
 | 点睛 | dianjing | Claude Sonnet 4 | 0.8 | project_update |

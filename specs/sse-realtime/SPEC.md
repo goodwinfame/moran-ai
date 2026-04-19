@@ -33,13 +33,13 @@ SSE 实时通信模块。负责将 OpenCode 事件流和面板数据变更实时
 | tool_result 工具名 | 目标 Tab | 面板行为 |
 |-------------------|----------|----------|
 | `brainstorm_create/update` | 脑暴 | 追加/更新方案 |
-| `world_setting_*`, `world_subsystem_*`, `location_*`, `glossary_*` | 设定 | 刷新卡片/详情 |
-| `character_*`, `relationship_*` | 角色 | 追加/更新角色卡片 |
-| `outline_*`, `arc_detail_*` | 大纲 | 更新树结构 |
-| `chapter_write/revise/archive` | 章节 | 更新章节列表/状态 |
-| `review_round*` | 审校 | 渲染评分条+详情 |
-| `analysis_*` | 分析 | 渲染雷达图+趋势图 |
-| `knowledge_*`, `lesson_*` | 知识库 | 追加/更新条目 |
+| `world_create/update/delete` | 设定 | 刷新卡片/详情 |
+| `character_*`, `character_state_create`, `relationship_*` | 角色 | 追加/更新角色卡片 |
+| `outline_create/update` | 大纲 | 更新树结构 |
+| `chapter_create/update/archive`, `style_create/update`, `summary_create` | 章节 | 更新章节列表/状态 |
+| `review_execute` | 审校 | 渲染评分条+详情 |
+| `analysis_execute` | 分析 | 渲染雷达图+趋势图 |
+| `knowledge_*`, `lesson_*`, `thread_*`, `timeline_*` | 知识库 | 追加/更新条目 |
 
 #### 章节写作专用事件
 

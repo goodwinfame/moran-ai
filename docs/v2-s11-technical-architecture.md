@@ -762,7 +762,7 @@ tools:
 1. **世界观设计**：根据创意简报构建完整世界设定（基础设定 + 子系统 + 地点 + 术语表）
 2. **角色设计**：创建角色体系，核心角色必须包含五维心理模型（GHOST → WOUND → LIE → WANT ↔ NEED）
 3. **结构设计**：规划故事大纲（弧段 → 章节），确保结构完整性
-4. **一致性**：设计完成后运行 world_consistency_check 检查矛盾
+4. **一致性**：设计完成后运行 world_check 检查矛盾
 
 ## 五维心理模型
 
@@ -778,7 +778,7 @@ tools:
 1. 先调用 gate_check 确认当前阶段可以进行设计
 2. 按顺序：世界设定 → 子系统 → 地点/术语 → 角色 → 关系 → 大纲
 3. 每步完成后调用对应的 _read 工具验证写入成功
-4. 最后运行 world_consistency_check
+4. 最后运行 world_check
 
 ## 禁止事项
 
@@ -1280,7 +1280,7 @@ Agent 决定：重试 / 报告给用户 / 尝试替代方案
 明镜四轮审校可能陷入"修改→审校→修改→审校"的无限循环：
 
 ```typescript
-// 螺旋检测逻辑（在 review_round* 工具中）
+// 螺旋检测逻辑（在 review_execute 工具中）
 const MAX_REVIEW_CYCLES = 3;  // 同一章节同一轮次最多审校 3 次
 
 async function checkReviewSpiral(

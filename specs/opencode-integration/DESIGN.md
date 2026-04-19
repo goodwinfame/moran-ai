@@ -75,13 +75,13 @@ packages/mcp-server/
 │   │   ├── index.ts          ← 工具统一注册
 │   │   ├── project.ts        ← project_read, project_update, gate_check
 │   │   ├── brainstorm.ts     ← brainstorm_create/read/update
-│   │   ├── world.ts          ← world_setting_* (10 工具)
-│   │   ├── character.ts      ← character_* (7 工具)
-│   │   ├── writing.ts        ← style_*, outline_*, chapter_* (10 工具)
-│   │   ├── review.ts         ← review_round1/2/3/4 (4 工具)
-│   │   ├── archive.ts        ← summary_*, thread_*, timeline_* (4 工具)
-│   │   ├── knowledge.ts      ← knowledge_*, lesson_* (4 工具)
-│   │   └── analysis.ts       ← analysis_run/read (2 工具)
+│   │   ├── world.ts          ← world_* (5 工具)
+│   │   ├── character.ts      ← character_*, character_state_*, relationship_* (9 工具)
+│   │   ├── writing.ts        ← style_*, outline_*, chapter_* (11 工具)
+│   │   ├── review.ts         ← review_execute (1 工具)
+│   │   ├── archive.ts        ← summary_*, thread_*, timeline_* (7 工具)
+│   │   ├── knowledge.ts      ← knowledge_*, lesson_* (7 工具)
+│   │   └── analysis.ts       ← analysis_execute/read (2 工具)
 │   └── types.ts              ← MCPToolResult 等类型
 └── __tests__/
     ├── gates/
@@ -216,12 +216,12 @@ interface GateRule {
   ): Promise<{ passed: boolean; suggestion: string }>;
 }
 
-// 规则映射表
+// 规则映射表（key = GateAction，与 gate_check 的 action 参数一致）
 const GATE_RULES: Record<string, GateRule[]> = {
-  "world_setting_create": [
+  "world_design": [
     { name: "创意简报已存在", level: "HARD", evaluate: hasBrainstormBrief },
   ],
-  "character_create": [
+  "character_design": [
     { name: "世界设定已存在", level: "HARD", evaluate: hasWorldSetting },
     { name: "力量体系已定义", level: "SOFT", evaluate: hasPowerSystem },
   ],

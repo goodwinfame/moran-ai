@@ -112,21 +112,22 @@ Agent 模块定义墨染 V2 的 10 个 AI Agent 体系（5 核心 + 3 支援 + 2
 **温度场景化**（5 种章节类型）：
 - 日常：0.7-0.8 | 战斗：0.6-0.7 | 情感：0.75-0.85 | 悬疑：0.5-0.6 | 高潮：0.65-0.75
 
-### 2.5 MCP 工具体系（47 个）
+### 2.5 MCP 工具体系（48 个）
 
 #### 分类总览
 
 | 类别 | 工具数 | 工具名称 |
 |------|--------|---------|
-| 项目管理 | 3 | project_read, project_update, gate_check |
-| 灵感脑暴 | 3 | brainstorm_create, brainstorm_read, brainstorm_update |
-| 世界观 | 10 | world_setting_create/read/update, world_subsystem_create/update, world_consistency_check, location_create/update, glossary_create/update |
-| 角色 | 7 | character_create/read/update, character_state_update/snapshot, relationship_create/update |
-| 写作 | 10 | style_create/read, outline_create/update, arc_detail_create, context_assemble, chapter_write/revise/version_create/archive |
-| 审校 | 4 | review_round1/round2/round3/round4 |
-| 归档 | 4 | summary_create, thread_update, timeline_event_create, arc_summary_create |
-| 知识库 | 4 | knowledge_read/write, lesson_learn/read |
-| 分析 | 2 | analysis_run, analysis_read |
+| 项目管理 | 3 | project_read/update, gate_check |
+| 灵感脑暴 | 3 | brainstorm_create/read/update |
+| 世界观 | 5 | world_create/read/update/delete/check |
+| 角色 | 9 | character_create/read/update/delete, character_state_create/read, relationship_create/read/update |
+| 写作准备 | 7 | style_create/read/update, outline_create/read/update, context_assemble |
+| 章节写作 | 4 | chapter_create/read/update/archive |
+| 审校 | 1 | review_execute |
+| 归档 | 7 | summary_create/read, thread_create/read/update, timeline_create/read |
+| 知识库 | 7 | knowledge_create/read/update/delete, lesson_create/read/update |
+| 分析 | 2 | analysis_execute/read |
 
 #### 关键工具接口
 
@@ -152,7 +153,7 @@ output: {
 gate: HARD: 大纲已存在 + Brief 已定义 + 文风已确定
 ```
 
-**`chapter_write`**：
+**`chapter_create`**：
 ```typescript
 input: { projectId: string, chapterNumber: number, title: string, content: string }
 output: { ok: boolean, chapterId: string, version: number }

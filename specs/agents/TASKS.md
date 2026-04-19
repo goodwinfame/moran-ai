@@ -56,23 +56,20 @@
 - **规则**：
   - 覆盖 SPEC 2.6 门禁依赖链的所有 HARD/SOFT 规则
   - 最小规则集：
-    - `world_setting_create` → HARD: 创意简报已存在
+    - `world_create` → HARD: 创意简报已存在
     - `character_create` → HARD: 世界设定已存在; SOFT: 力量体系已定义
     - `outline_create` → HARD: 角色 ≥ 2 个主要 + 关系网络
-    - `chapter_write` → HARD: 大纲+Brief+角色状态+文风; SOFT: 世界自洽
+    - `chapter_create` → HARD: 大纲+Brief+角色状态+文风; SOFT: 世界自洽
     - `chapter_archive` → HARD: 审校通过
-    - `review_round2` → HARD: Round 1 已完成
-    - `review_round3` → HARD: Round 2 已完成
-    - `review_round4` → HARD: Round 3 已完成
+    - `review_execute(round=2)` → HARD: Round 1 已完成
+    - `review_execute(round=3)` → HARD: Round 2 已完成
+    - `review_execute(round=4)` → HARD: Round 3 已完成
 - **验收**：规则数量覆盖全部门禁链，单元测试覆盖 HARD 拒绝/SOFT 警告/正常通过
 
-### T6: 实现审校工具（4 个）
+### T6: 实现审校工具（1 个）
 - **依赖**：opencode-integration T1（MCP Server 骨架）
 - **输出**：`packages/mcp-server/src/tools/review.ts`
-  - `review_round1`（AI 味检测）
-  - `review_round2`（逻辑一致性）
-  - `review_round3`（文学质量）
-  - `review_round4`（读者体验）
+  - `review_execute`（round=1 AI味检测 / round=2 逻辑一致性 / round=3 文学质量 / round=4 读者体验）
 - **规则**：
   - 各轮顺序依赖（Round N 需 Round N-1 完成）
   - 工具负责读取数据 + 保存评分，评审逻辑由明镜 Agent LLM 完成
