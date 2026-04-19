@@ -21,18 +21,24 @@ export const characterRelationships = pgTable(
   (table) => [uniqueIndex("character_relationships_source_target_type_unique").on(table.sourceId, table.targetId, table.type)],
 );
 
-export const relationshipStates = pgTable("relationship_states", {
-  id: uuid("id").primaryKey().defaultRandom(),
-  sourceId: uuid("source_id")
-    .notNull()
-    .references(() => characters.id, { onDelete: "cascade" }),
-  targetId: uuid("target_id")
-    .notNull()
-    .references(() => characters.id, { onDelete: "cascade" }),
-  chapterNumber: integer("chapter_number").notNull(),
-  type: varchar("type", { length: 100 }),
-  intensity: real("intensity"),
-  description: text("description"),
-  change: text("change"),
-  createdAt: timestamp("created_at", { withTimezone: true }).defaultNow(),
-});
+export const relationshipStates = pgTable(
+  "relationship_states",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    sourceId: uuid("source_id")
+      .notNull()
+      .references(() => characters.id, { onDelete: "cascade" }),
+    targetId: uuid("target_id")
+      .notNull()
+      .references(() => characters.id, { onDelete: "cascade" }),
+    chapterNumber: integer("chapter_number").notNull(),
+    type: varchar("type", { length: 100 }),
+    intensity: real("intensity"),
+    description: text("description"),
+    change: text("change"),
+    createdAt: timestamp("created_at", { withTimezone: true }).defaultNow(),
+  },
+  (table) => [
+    uniqueIndex("relationship_states_source_target_chapter_unique").on(table.sourceId, table.targetId, table.chapterNumber),
+  ],
+);

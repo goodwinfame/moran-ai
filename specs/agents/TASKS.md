@@ -9,45 +9,47 @@
 - **状态**：✅ 已完成——显示别名已全部移除，统一使用子名（云墨/剑心/星河等），显示格式为"执笔·{子名}"
 - **输出**：已修改 AGENTS.md、v2-s3、v2-s4、v2-s11、agents SPEC/DESIGN 全局统一
 
-### T2: 编写 10 个 Agent YAML 配置
+### T2: 编写 10 个 Agent Markdown 配置
 - **依赖**：T1
 - **输出**：
-  - `opencode-config/agents/moheng.yaml`（墨衡：协调器，Sonnet 4，temp 0.3）
-  - `opencode-config/agents/lingxi.yaml`（灵犀：脑暴，Sonnet 4，temp 0.9）
-  - `opencode-config/agents/jiangxin.yaml`（匠心：设计，Sonnet 4，temp 0.5）
-  - `opencode-config/agents/zhibi.yaml`（执笔：写作，Sonnet 4，temp 动态）
-  - `opencode-config/agents/mingjing.yaml`（明镜：审校，Sonnet 4，temp 0.2）
-  - `opencode-config/agents/zaishi.yaml`（载史：归档，Haiku，temp 0.3）
-  - `opencode-config/agents/bowen.yaml`（博闻：知识库，Haiku，temp 0.3）
-  - `opencode-config/agents/xidian.yaml`（析典：分析，Sonnet 4，temp 0.4）
-  - `opencode-config/agents/shuchong.yaml`（书虫：读者，Haiku，temp 0.7）
-  - `opencode-config/agents/dianjing.yaml`（点睛：标题，Sonnet 4，temp 0.8）
+  - `agents/moheng.md`（墨衡：协调器，Sonnet 4，temp 0.3）
+  - `agents/lingxi.md`（灵犀：脑暴，Sonnet 4，temp 0.9）
+  - `agents/jiangxin.md`（匠心：设计，Sonnet 4，temp 0.5）
+  - `agents/zhibi.md`（执笔：写作，Sonnet 4，temp 动态）
+  - `agents/mingjing.md`（明镜：审校，Sonnet 4，temp 0.2）
+  - `agents/zaishi.md`（载史：归档，Haiku，temp 0.3）
+  - `agents/bowen.md`（博闻：知识库，Haiku，temp 0.3）
+  - `agents/xidian.md`（析典：分析，Sonnet 4，temp 0.4）
+  - `agents/shuchong.md`（书虫：读者，Haiku，temp 0.7）
+  - `agents/dianjing.md`（点睛：标题，Sonnet 4，temp 0.8）
 - **规则**：
-  - 每个 YAML 包含 name/id/model/temperature/max_tokens/system_prompt/tools
-  - system_prompt 详细定义角色职责、行为准则、工具使用说明
+  - Markdown frontmatter 包含 description/model/temperature/tools
+  - model 带 provider 前缀（如 `anthropic/claude-sonnet-4-20250514`）
+  - tools 使用 map 格式（`moran-mcp_{tool}: true`）
+  - `---` 后的 Markdown 正文为 system_prompt，详细定义角色职责、行为准则、工具使用说明
   - tools 列表严格按 SPEC 2.5 中各 Agent 权限分配
-- **验收**：YAML 格式正确，模型/温度/工具权限与 SPEC 一致
+- **验收**：Markdown frontmatter 格式正确，模型/温度/工具权限与 SPEC 一致
 
-### T3: 编写 9 个写手风格 YAML 配置
+### T3: 编写 9 个写手风格 DB 种子数据
 - **依赖**：T1
-- **输出**：
-  - `opencode-config/styles/yunmo.yaml`（云墨：默认/万用）
-  - `opencode-config/styles/jianxin.yaml`（剑心：仙侠/武侠）
-  - `opencode-config/styles/xinghe.yaml`（星河：硬核/太空）
-  - `opencode-config/styles/sushou.yaml`（素手：情感/关系）
-  - `opencode-config/styles/yanhuo.yaml`（烟火：现代/都市）
-  - `opencode-config/styles/anqi.yaml`（暗棋：推理/悬疑）
-  - `opencode-config/styles/qingshi.yaml`（青史：朝堂/历史）
-  - `opencode-config/styles/yelan.yaml`（夜阑：惊悚/恐怖）
-  - `opencode-config/styles/jiexing.yaml`（谐星：轻松/喜剧）
+- **输出**：`packages/core/src/db/seed/styles.ts`（seed 脚本，写入 `style_configs` 表）
+  - 云墨（默认/万用）
+  - 剑心（仙侠/武侠）
+  - 星河（硬核/太空）
+  - 素手（情感/关系）
+  - 烟火（现代/都市）
+  - 暗棋（推理/悬疑）
+  - 青史（朝堂/历史）
+  - 夜阑（惊悚/恐怖）
+  - 谐星（轻松/喜剧）
 - **规则**：
-  - 每个 YAML 包含 name/id/display_name/genre/recommended_model/description/example_paragraph
+  - 每个风格包含 name/styleId/displayName/recommendedModel/description/exampleParagraph
   - description 必须具体到语言特征、情感处理、节奏感
-  - example_paragraph 提供 100-200 字的风格示例
-- **验收**：9 个风格 YAML 都存在，描述 + 示例段落质量达标
+  - exampleParagraph 提供 100-200 字的风格示例
+- **验收**：9 个风格种子数据写入 DB，描述 + 示例段落质量达标
 
 ### T4: 编写 MCP 连接配置
-- **输出**：`opencode-config/mcp.json`
+- **输出**：`opencode.json`（项目根目录）
 - **验收**：JSON 格式正确，MCP Server 路径指向 `packages/mcp-server/dist/index.js`
 
 ### T5: 实现门禁规则定义
@@ -89,7 +91,7 @@
 
 ### T8: 实现模型覆盖优先级逻辑
 - **输出**：在 `packages/api-server/src/opencode/` 中实现 `resolveModel()` 函数
-- **规则**：项目级覆盖 > 全局偏好 > 风格默认 > Agent YAML 默认
+- **规则**：项目级覆盖 > 全局偏好 > 风格默认 > Agent 配置默认
 - **验收**：单元测试覆盖 4 级优先级
 
 ### T9: 实现温度场景化逻辑
@@ -109,7 +111,7 @@
 
 ### T11: Docker Compose 更新
 - **依赖**：T2, T3, T4
-- **输出**：`docker-compose.dev.yml` 中 opencode 容器挂载 `opencode-config/` 和 `packages/mcp-server/`
+- **输出**：`docker-compose.dev.yml` 中 opencode 容器挂载 `agents/`、`opencode.json` 和 `packages/mcp-server/`
 - **验收**：`docker compose up` 后 opencode 容器启动健康，MCP Server 可连接
 
 ### T12: 端到端集成验证

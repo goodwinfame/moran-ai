@@ -1,4 +1,4 @@
-import { index, integer, pgTable, text, timestamp, uuid, varchar } from "drizzle-orm/pg-core";
+import { index, integer, pgTable, text, timestamp, uniqueIndex, uuid, varchar } from "drizzle-orm/pg-core";
 import { knowledgeCategoryEnum } from "./enums.js";
 
 export const knowledgeEntries = pgTable(
@@ -15,7 +15,10 @@ export const knowledgeEntries = pgTable(
     createdAt: timestamp("created_at", { withTimezone: true }).defaultNow(),
     updatedAt: timestamp("updated_at", { withTimezone: true }).defaultNow(),
   },
-  (table) => [index("knowledge_entries_scope_idx").on(table.scope)],
+  (table) => [
+    uniqueIndex("knowledge_entries_scope_category_title_unique").on(table.scope, table.category, table.title),
+    index("knowledge_entries_scope_idx").on(table.scope),
+  ],
 );
 
 export const knowledgeVersions = pgTable("knowledge_versions", {

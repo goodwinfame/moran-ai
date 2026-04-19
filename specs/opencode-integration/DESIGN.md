@@ -9,7 +9,7 @@
 |------|------|---------|
 | `OpenCodeSessionManager` | ✅ 可用 | 增强：持久化 session 映射到 DB |
 | MCP Server | ❌ 不存在 | 全新构建：54 个工具 + 门禁 |
-| Agent 配置 | ❌ 不存在 | 全新构建：10 Agent YAML 配置 |
+| Agent 配置 | ❌ 不存在 | 全新构建：10 Agent Markdown 配置（`agents/*.md`） |
 | Docker 容器 | ✅ 可用 | 挂载 MCP Server 代码 |
 
 ## 2. 技术方案
@@ -114,15 +114,13 @@ export function createMcpServer() {
 
 #### 2.2.3 工具实现模式
 
-每个工具文件导出注册函数，统一模式：
+每个工具文件导出注册函数，MCP 工具是薄壳——解析参数 → 调 Service → 格式化 MCP 响应：
 
 ```typescript
 // src/tools/project.ts
 import type { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { z } from "zod";
-import { getDb } from "@moran/core/db";
-import { projects } from "@moran/core/db/schema";
-import { GateChecker } from "../gates/checker.js";
+import { projectService } from "@moran/core/services";
 import type { MCPToolResult } from "../types.js";
 
 export function registerProjectTools(server: McpServer) {
@@ -131,10 +129,9 @@ export function registerProjectTools(server: McpServer) {
     "获取项目详情和当前阶段",
     { projectId: z.string().uuid() },
     async ({ projectId }): Promise<MCPToolResult> => {
-      const db = getDb();
-      const project = await db.select().from(projects).where(eq(projects.id, projectId)).limit(1);
-      if (!project.length) return { ok: false, error: { code: "NOT_FOUND", message: "Project not found" } };
-      return { ok: true, data: project[0] };
+      const result = await projectService.getById(projectId);
+      if (!result.ok) return { ok: false, error: { code: "NOT_FOUND", message: result.error.message } };
+      return { ok: true, data: result.data };
     },
   );
 
@@ -147,8 +144,8 @@ export function registerProjectTools(server: McpServer) {
       params: z.record(z.any()).optional(),
     },
     async ({ projectId, action, params }) => {
-      const checker = new GateChecker(getDb());
-      return checker.check(projectId, action, params);
+      const result = await gateService.check(projectId, action, params);
+      return result;
     },
   );
 }
@@ -240,63 +237,58 @@ const GATE_RULES: Record<string, GateRule[]> = {
 
 #### 2.4.1 配置存放
 
-Agent 配置存放在项目根目录 `opencode-config/` 下，通过 Docker volume 映射给 OpenCode：
+Agent 配置存放在项目根目录 `agents/` 下，使用 Markdown frontmatter 格式（参见 S11 §4.3）。通过 Docker volume 映射给 OpenCode：
 
 ```
-opencode-config/
-├── agents/
-│   ├── moheng.yaml       ← 墨衡（协调器）
-│   ├── lingxi.yaml       ← 灵犀（脑暴）
-│   ├── jiangxin.yaml     ← 匠心（设计）
-│   ├── zhibi.yaml        ← 执笔（写作 + 9 子写手引用）
-│   ├── mingjing.yaml     ← 明镜（审校）
-│   ├── zaishi.yaml       ← 载史（归档）
-│   ├── bowen.yaml        ← 博闻（知识库）
-│   ├── xidian.yaml       ← 析典（分析）
-│   ├── shuchong.yaml     ← 书虫（读者）
-│   └── dianjing.yaml     ← 点睛（标题）
-├── styles/
-│   ├── yunmo.yaml         ← 云墨（默认风格）
-│   ├── jianxin.yaml      ← 剑心（仙侠）
-│   ├── xinghe.yaml       ← 星河（科幻）
-│   ├── sushou.yaml       ← 素手（情感）
-│   ├── yanhuo.yaml       ← 烟火（都市）
-│   ├── anqi.yaml         ← 暗棋（悬疑）
-│   ├── qingshi.yaml      ← 青史（历史）
-│   ├── yelan.yaml        ← 夜阑（惊悚）
-│   └── jiexing.yaml      ← 谐星（喜剧）
-└── mcp.json              ← MCP Server 连接配置
+agents/
+├── moheng.md        ← 墨衡（协调器）
+├── lingxi.md        ← 灵犀（脑暴）
+├── jiangxin.md      ← 匠心（设计）
+├── zhibi.md         ← 执笔（写作 + 9 子写手引用）
+├── mingjing.md      ← 明镜（审校）
+├── zaishi.md        ← 载史（归档）
+├── bowen.md         ← 博闻（知识库）
+├── xidian.md        ← 析典（分析）
+├── shuchong.md      ← 书虫（读者）
+└── dianjing.md      ← 点睛（标题）
 ```
 
-#### 2.4.2 Agent YAML 格式
+> **写手风格**不是 Agent 配置，而是 DB 种子数据（`style_configs` 表），通过 seed 脚本写入。
 
-```yaml
-# agents/moheng.yaml
-name: 墨衡
-id: moheng
-model: claude-sonnet-4-20250514
+#### 2.4.2 Agent Markdown 配置格式
+
+```markdown
+# agents/moheng.md
+---
+description: "墨衡 — 全流程协调器。用户唯一入口，意图识别与 Agent 委派。"
+model: anthropic/claude-sonnet-4-20250514
 temperature: 0.3
-system_prompt: |
-  你是墨衡——墨染创作系统的协调器...
-  [详细 system prompt]
 tools:
-  - "*"  # 墨衡有全部工具权限
-  - dispatch  # 委派能力
+  moran-mcp_project_read: true
+  moran-mcp_project_update: true
+  # ...（完整工具列表见 agents/DESIGN.md §2.2.1）
+---
+
+你是墨衡——墨染创作系统的协调器...
+（system prompt 正文）
 ```
 
-```yaml
-# agents/lingxi.yaml
-name: 灵犀
-id: lingxi
-model: claude-sonnet-4-20250514
+```markdown
+# agents/lingxi.md
+---
+description: "灵犀 — 灵感碰撞专家。发散→聚焦→结晶，输出创意简报。"
+model: anthropic/claude-sonnet-4-20250514
 temperature: 0.9
-system_prompt: |
-  你是灵犀——墨染创作系统的灵感碰撞专家...
 tools:
-  - brainstorm_create
-  - brainstorm_read
-  - brainstorm_update
-  - brainstorm_patch
+  moran-mcp_brainstorm_create: true
+  moran-mcp_brainstorm_read: true
+  moran-mcp_brainstorm_update: true
+  moran-mcp_brainstorm_patch: true
+  moran-mcp_project_read: true
+---
+
+你是灵犀——墨染创作系统的灵感碰撞专家...
+（system prompt 正文）
 ```
 
 #### 2.4.3 Docker Volume 挂载
@@ -305,7 +297,8 @@ tools:
 # docker-compose.dev.yml 新增
 opencode:
   volumes:
-    - ./opencode-config:/app/config:ro
+    - ./agents:/app/agents:ro
+    - ./opencode.json:/app/opencode.json:ro
 ```
 
 ### 2.5 新增包和依赖
@@ -313,7 +306,6 @@ opencode:
 | 包/模块 | 类型 | 依赖 |
 |---------|------|------|
 | `packages/mcp-server` | 新包 | `@modelcontextprotocol/sdk`, `@moran/core`, `zod` |
-| `opencode-config/` | 配置目录 | 无代码依赖 |
 
 ## 3. 不需要改动的部分
 

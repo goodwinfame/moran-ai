@@ -52,7 +52,10 @@ export const plotThreads = pgTable(
     keyMoments: jsonb("key_moments"),
     createdAt: timestamp("created_at", { withTimezone: true }).defaultNow(),
   },
-  (table) => [index("plot_threads_project_id_idx").on(table.projectId)],
+  (table) => [
+    uniqueIndex("plot_threads_project_name_unique").on(table.projectId, table.name),
+    index("plot_threads_project_id_idx").on(table.projectId),
+  ],
 );
 
 export const timelineEvents = pgTable(

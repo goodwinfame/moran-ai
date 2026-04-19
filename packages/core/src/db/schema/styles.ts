@@ -1,4 +1,4 @@
-import { boolean, index, integer, jsonb, pgTable, text, timestamp, uuid, varchar } from "drizzle-orm/pg-core";
+import { boolean, index, integer, jsonb, pgTable, text, timestamp, uniqueIndex, uuid, varchar } from "drizzle-orm/pg-core";
 import { styleSourceEnum } from "./enums.js";
 import { projects } from "./projects.js";
 
@@ -64,6 +64,7 @@ export const styleConfigs = pgTable(
     updatedAt: timestamp("updated_at", { withTimezone: true }).defaultNow(),
   },
   (table) => [
+    uniqueIndex("style_configs_project_style_id_unique").on(table.projectId, table.styleId),
     index("style_configs_project_id_idx").on(table.projectId),
     index("style_configs_style_id_idx").on(table.styleId),
   ],

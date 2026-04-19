@@ -38,7 +38,7 @@ interface OpenCodeSessionManager {
 
 ### 2.2 MCP Server
 
-MCP Server 是一个独立进程/模块，暴露 54 个工具给 OpenCode 中运行的 LLM。
+MCP Server（`packages/mcp-server/`）是一个独立进程，暴露 54 个工具给 OpenCode 中运行的 LLM。
 工具通过 Service 层操作 DB，门禁逻辑内置于工具中。
 
 #### 工具分类（10 类，54 个）

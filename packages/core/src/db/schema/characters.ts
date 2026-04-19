@@ -23,7 +23,10 @@ export const characters = pgTable(
     createdAt: timestamp("created_at", { withTimezone: true }).defaultNow(),
     updatedAt: timestamp("updated_at", { withTimezone: true }).defaultNow(),
   },
-  (table) => [index("characters_project_id_idx").on(table.projectId)],
+  (table) => [
+    uniqueIndex("characters_project_name_unique").on(table.projectId, table.name),
+    index("characters_project_id_idx").on(table.projectId),
+  ],
 );
 
 export const characterStates = pgTable(

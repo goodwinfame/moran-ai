@@ -122,14 +122,14 @@
 
 ### T13: Agent 配置文件编写
 - **输出**：
-  - `opencode-config/agents/` 下 10 个 Agent YAML
-  - `opencode-config/styles/` 下 9 个写手风格 YAML
-  - `opencode-config/mcp.json`（MCP 连接配置）
-- **验收**：YAML 格式正确，模型/温度/工具权限与 SPEC 一致
+  - `agents/` 下 10 个 Agent Markdown 配置（frontmatter 格式）
+  - `packages/core/src/db/seed/styles.ts`（9 个写手风格 DB 种子数据）
+  - `opencode.json`（项目根目录，MCP 连接配置）
+- **验收**：Markdown frontmatter 格式正确，模型/温度/工具权限与 SPEC 一致
 
 ### T14: Docker Compose 更新
 - **输入**：`docker-compose.dev.yml`
-- **输出**：OpenCode 容器挂载 `opencode-config/` 和 `packages/mcp-server/`
+- **输出**：OpenCode 容器挂载 `agents/`、`opencode.json` 和 `packages/mcp-server/`
 - **验收**：`docker compose up` 后 MCP Server 可被 OpenCode 连接
 
 ### T15: 验证全局构建

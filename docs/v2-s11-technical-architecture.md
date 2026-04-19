@@ -1895,7 +1895,7 @@ EventBuffer 保留最近 1000 条事件（per-session），超出后丢弃最旧
 |------|-----------|--------|
 | `specs/opencode-integration/` | MCP 传输明确为 stdio；Agent 配置格式从 YAML 改为 Markdown frontmatter；SDK API 对齐实际调研结果；`server` → `api-server`；Service 层引用；_patch 工具白名单 | 高 |
 | `specs/infrastructure/` | docker-compose.dev.yml 增加 MCP 相关 volume 和环境变量；新增 `packages/mcp-server/` 包初始化步骤；`server` → `api-server` | 高 |
-| `specs/mcp-tools/` | 标准动词集添加 `_patch`；工具总数 48 → 54；Service 层架构引用 | 高 |
+| `specs/mcp-tools/` | 标准动词集包含 `_patch`；工具总数 54（18 域）；Service 层架构引用 | 高 |
 | `specs/agents/` | Agent 配置格式对齐 Markdown frontmatter；工具权限白名单格式 `{mcp}_{tool}: true`；task 委派机制替代模糊的 SubtaskPart 描述；_patch 工具加入白名单（匠心、执笔） | 高 |
 | `specs/sse-realtime/` | EventTransformer 增加 _patch 工具的 Tool→Tab 映射；OpenCode SSE 事件消费模式对齐 SDK 实际 API | 中 |
 | `specs/api-routes/` | 明确 Panel API 只读（项目 CRUD + Auth 除外）；新增 Auth 路由定义；Service 层引用 | 中 |

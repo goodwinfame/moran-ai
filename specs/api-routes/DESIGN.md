@@ -101,19 +101,29 @@ export function paginated<T>(
 }
 ```
 
-### 2.5 userId 获取中间件
+### 2.5 认证中间件
+
+> **已由 `specs/auth/DESIGN.md` §2.3 定义**。旧 `userIdMiddleware`（header 提取）已废弃，替换为 Session Cookie 认证。
 
 ```typescript
-// packages/api-server/src/middleware/user-id.ts
+// packages/api-server/src/middleware/auth.ts（详见 auth/DESIGN.md §2.3）
 import type { Context, Next } from "hono";
+import { getCookie } from "hono/cookie";
+import { authService } from "@moran/core/services";
 
 /**
- * 从请求头提取 userId，fallback 到 "anonymous"。
- * 设置到 c.set("userId", ...) 供路由使用。
+ * 从 Session Cookie 校验用户身份。
+ * 未登录或 Session 过期返回 401。
+ * 通过后注入 c.set("userId", session.userId) 供路由使用。
  */
-export async function userIdMiddleware(c: Context, next: Next) {
-  const userId = c.req.header("x-user-id") ?? "anonymous";
-  c.set("userId", userId);
+export async function requireAuth(c: Context, next: Next) {
+  const sessionId = getCookie(c, "session_id");
+  if (!sessionId) return c.json({ ok: false, error: { code: "UNAUTHORIZED", message: "未登录" } }, 401);
+
+  const session = await authService.validateSession(sessionId);
+  if (!session) return c.json({ ok: false, error: { code: "UNAUTHORIZED", message: "Session 已过期" } }, 401);
+
+  c.set("userId", session.userId);
   await next();
 }
 ```
@@ -189,9 +199,11 @@ import { createApp } from "../app.js";
 
 describe("GET /api/projects", () => {
   it("returns project list", async () => {
+    // requireAuth 中间件需要有效 Session Cookie
+    // 测试中 mock authService.validateSession 返回 { userId: "test-user" }
     const { app } = createApp();
     const res = await app.request("/api/projects", {
-      headers: { "x-user-id": "test-user" },
+      headers: { cookie: "session_id=test-session-id" },
     });
     expect(res.status).toBe(200);
     const body = await res.json();
@@ -200,7 +212,7 @@ describe("GET /api/projects", () => {
 });
 ```
 
-DB 操作需要 mock 或使用测试数据库。优先使用 `vitest.mock()` mock Drizzle 查询。
+DB 操作通过 Service 层封装。测试时优先 mock Service 层（`vitest.mock("@moran/core/services")`），避免直接 mock Drizzle ORM。
 
 ### 2.10 新增依赖
 
