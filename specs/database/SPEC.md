@@ -42,6 +42,19 @@
 - `wound` 字段补齐五维模型（GHOST → **WOUND** → LIE → WANT → NEED）。`character_dna` 表已有 `wound` 字段，但 `characters` 主表缺少，需要在主表也存储摘要版本供列表展示。
 - `design_tier` 用于 UI 按设计深度分组展示角色卡片（核心层/重要层/支撑层/点缀层）。
 
+#### `knowledge_entries` 表新增字段
+
+| 字段 | 类型 | 约束 | 说明 |
+|------|------|------|------|
+| `source` | `knowledge_source` enum | NOT NULL, default `'user'` | 来源类型：`builtin`（seed 脚本预置）/ `user`（运行时创建）/ `fork`（用户定制预置副本） |
+
+说明：
+- 与 `style_configs.source`（`styleSourceEnum`）对齐，区分预置数据与用户数据。
+- 新增 `knowledgeSourceEnum`（`packages/core/src/db/schema/enums.ts`）：`["builtin", "user", "fork"]`。
+- `source='builtin'` 的条目由 seed 脚本管理（`packages/core/src/db/seed/genre-knowledge.ts`），`scope='global'`。
+- `source='user'` 的条目由匠心/博闻通过 MCP 工具运行时创建，`scope='project:{id}'`。
+- `context_assemble` 加载时项目级（`scope='project:{id}'`）覆盖全局级（`scope='global'`），同 title 时项目级优先。
+
 #### `character_dna` 表
 
 `character_dna` 已包含完整五维字段（ghost, wound, lie, want, need），无需修改。确认保留。
@@ -66,7 +79,7 @@
 | `memory` | 记忆系统 | 无 |
 | `tension` | 张力追踪 | 无 |
 | `documents` | 通用文档（脑暴/审校/分析报告） | 无 |
-| `knowledge` | 知识库条目 | 无 |
+| `knowledge` | 知识库条目 | 新增 source 字段 |
 | `logs` | 操作日志 | 无 |
 | `summaries` | 章节摘要 | 无 |
 | `relations` | 通用关系 | 无 |
@@ -89,6 +102,8 @@
 - [ ] `characterRoleEnum` 包含 `deuteragonist`
 - [ ] `projectStatusEnum` 值为 `["brainstorm", "world", "character", "outline", "writing", "completed"]`
 - [ ] `characters` 表包含 `wound` (text, nullable) 和 `design_tier` (text, nullable) 字段
+- [ ] `knowledge_entries` 表包含 `source` (knowledge_source enum, NOT NULL, default 'user') 字段
+- [ ] `knowledgeSourceEnum` 已定义：`["builtin", "user", "fork"]`
 - [ ] `character_dna` 表保持完整五维字段（ghost, wound, lie, want, need）
 - [ ] Drizzle migration 文件已生成
 - [ ] `pnpm typecheck` 通过（core 包零错误）

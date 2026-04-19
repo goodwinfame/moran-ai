@@ -142,6 +142,8 @@ packages/
 
 子写手定义**文风**（prose voice），不绑定题材。题材技法作为知识库条目（category='genre'）独立存在，由 `context_assemble` 在写作时按需加载。墨衡根据项目题材自动组合文风+题材技法。
 
+> **题材技法管理**：预置题材技法（`source='builtin'`，`scope='global'`）由 seed 脚本管理，项目级题材技法（`source='user'`，`scope='project:{id}'`）由匠心/博闻运行时创建。`context_assemble` 加载时项目级覆盖全局级（同 title 时项目级优先）。
+
 | 子名 | 文风特征 | 推荐模型 |
 |------|---------|----------|
 | 云墨 | 均衡万用、自然流畅 | Claude Sonnet |

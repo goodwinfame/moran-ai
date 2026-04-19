@@ -48,6 +48,17 @@
   - exampleParagraph 提供 100-200 字的风格示例
 - **验收**：9 个风格种子数据写入 DB，描述 + 示例段落质量达标
 
+### T3.5: 编写默认题材技法种子数据
+- **依赖**：T3（风格种子数据先行，题材技法与文风独立但并行管理）
+- **输出**：`packages/core/src/db/seed/genre-knowledge.ts`（seed 脚本，写入 `knowledge_entries` 表）
+- **规则**：
+  - 每个题材技法条目：`scope='global'`、`category='genre'`、`source='builtin'`
+  - 至少覆盖以下题材：仙侠/武侠、都市/现代、科幻/未来、悬疑/推理、历史/古代、言情/情感、恐怖/惊悚、喜剧/轻松
+  - 每条包含 title（题材名）、content（专项技法指导：节奏控制、场景描写要点、常见陷阱、关键技巧）
+  - tags 标注适用文风（如 `["剑心", "青史"]`）供参考，但不强制绑定
+  - consumers 设为 `["zhibi"]`（执笔消费）
+- **验收**：≥8 个题材技法种子数据写入 DB，content 包含可操作的写作指导（非泛泛而谈）
+
 ### T4: 编写 MCP 连接配置
 - **输出**：`opencode.json`（项目根目录）
 - **验收**：JSON 格式正确，MCP Server 路径指向 `packages/mcp-server/dist/index.js`

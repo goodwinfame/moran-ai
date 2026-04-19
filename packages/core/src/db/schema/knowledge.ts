@@ -1,5 +1,5 @@
 import { index, integer, pgTable, text, timestamp, uniqueIndex, uuid, varchar } from "drizzle-orm/pg-core";
-import { knowledgeCategoryEnum } from "./enums.js";
+import { knowledgeCategoryEnum, knowledgeSourceEnum } from "./enums.js";
 
 export const knowledgeEntries = pgTable(
   "knowledge_entries",
@@ -7,6 +7,7 @@ export const knowledgeEntries = pgTable(
     id: uuid("id").primaryKey().defaultRandom(),
     scope: varchar("scope", { length: 255 }).notNull(),
     category: knowledgeCategoryEnum("category"),
+    source: knowledgeSourceEnum("source").notNull().default("user"),
     title: varchar("title", { length: 500 }),
     content: text("content").notNull(),
     tags: text("tags").array(),

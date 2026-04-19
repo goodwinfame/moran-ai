@@ -991,7 +991,7 @@ input: {
   title: string,
   content: string,
   tags: string[]?,
-  source: string?              // 来源描述（如 "外部分析提取"、"用户指导"）
+  sourceNote: string?            // 来源描述（如 "外部分析提取"、"用户指导"）
 }
 output.data: { id: string }
 gate: 无

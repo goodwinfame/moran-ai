@@ -21,6 +21,7 @@ export const documentCategoryEnum = pgEnum("document_category", ["brainstorm", "
 export const knowledgeCategoryEnum = pgEnum("knowledge_category", ["writing_craft", "genre", "style", "reference"]);
 export const decisionLevelEnum = pgEnum("decision_level", ["L1_decision", "L2_agent", "L3_system"]);
 export const styleSourceEnum = pgEnum("style_source", ["builtin", "user", "fork"]);
+export const knowledgeSourceEnum = pgEnum("knowledge_source", ["builtin", "user", "fork"]);
 export const chapterTypeEnum = pgEnum("chapter_type", ["daily", "normal", "emotional", "action", "climax"]);
 export const lessonStatusEnum = pgEnum("lesson_status", ["pending", "active", "archived", "cancelled"]);
 export const lessonSeverityEnum = pgEnum("lesson_severity", ["critical", "major", "minor"]);
