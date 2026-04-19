@@ -16,11 +16,9 @@
   },
   "dependencies": {
     "@hono/node-server": "^1.14.0",
-    "@moran/agents": "workspace:*",
     "@moran/core": "workspace:*",
     "@opencode-ai/sdk": "^1.4.0",
     "drizzle-orm": "^0.44.7",
-    "epub-gen-memory": "^1.1.2",
     "hono": "^4.7.0",
     "zod": "^3.24.0"
   },
