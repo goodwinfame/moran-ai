@@ -15,6 +15,10 @@ import { requestId } from "hono/request-id";
 import { errorHandler } from "./middleware/error-handler.js";
 import { requireAuth } from "./middleware/auth.js";
 import { createAuthRoutes } from "./routes/auth.js";
+import { createProjectRoutes } from "./routes/projects.js";
+import { createChatRoutes } from "./routes/chat.js";
+import { createUserRoutes } from "./routes/user.js";
+import { createPanelRoutes } from "./routes/panel/index.js";
 
 /** Hono Variables injected by middleware */
 type AppVariables = {
@@ -56,9 +60,11 @@ export function createApp(config: AppConfig = {}) {
   // ── 认证中间件（保护后续所有 /api/* 路由） ──────────────
   app.use("/api/*", requireAuth);
 
-  // ── 业务路由（需认证）将在此处挂载 ─────────────────────
-  // TODO: 按 SDD Spec 分批添加业务路由
-  // app.route("/api/projects", createProjectRoutes());
+  // ── 业务路由（需认证） ───────────────────────────────────
+  app.route("/api/chat", createChatRoutes());
+  app.route("/api/projects", createProjectRoutes());
+  app.route("/api/projects/:id", createPanelRoutes());
+  app.route("/api/user", createUserRoutes());
 
   // ── 全局错误处理 ────────────────────────────────────────
   app.onError(errorHandler);
