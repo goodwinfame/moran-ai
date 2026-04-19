@@ -476,12 +476,8 @@ $env:GIT_COMMITTER_EMAIL='swim1986@126.com'
 | 5.1 | 项目列表页（7 components, store, shared, shadcn, 90 tests, 841 total） | ✅ | `2842dae` |
 | 5.2 | 聊天窗口（18 components, chat-store, 123 tests, 964 total） | ✅ | `e46c32a` |
 | 5.3 | 信息面板（8 tabs, panel-store, event routing, 22 tests, 1061 total） | ✅ | `aece634` |
-| 6.1 | SSE 前端自动连接 | ⏳ | — |
-| 6.2 | 面板数据初始加载 | ⏳ | — |
-| 6.3 | Next.js Auth 中间件 | ⏳ | — |
-| 6.4 | Login 页面 | ⏳ | — |
-| 6.5 | Register 页面 | ⏳ | — |
-| 7.1-7.7 | Cost Tracking System | ⏳ | — |
-| 8.1-8.5 | Logging System | ⏳ | — |
-| 9.1-9.3 | Settings Panel | ⏳ | — |
-| 10.1-10.5 | UI Integration & Export | ⏳ | — |
+| 6 | Wiring & Auth Foundation (SSE connect, panel loading, auth middleware, login/register) | ✅ | `d8177a1` |
+| 7 | Cost Tracking System (usage_records, MODEL_PRICING, CostService, Usage API, NavBar token, TokenPopover) | ✅ | `9c85498` |
+| 8 | Logging System (agent_logs, LogService, withLogging, logs API, cleanup job) | ✅ | `2031a95` |
+| 9 | Settings Panel (ProjectSettings jsonb, settings store, drawer data binding) | ✅ | `2480f58` |
+| 10 | UI Integration & Export (ExportService, export API, wire AgentStatusBar/QuickActions/FileUploadDialog/ExportDialog) | ✅ | `f46797c` |
