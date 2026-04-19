@@ -389,7 +389,7 @@ $env:GIT_COMMITTER_EMAIL='swim1986@126.com'
 | 1.3 | auth 认证系统 | ✅ | `8910f44` |
 | 2 | Service 层（14 CRUD Service, 226 tests） | ✅ | `846719d` |
 | 3.1 | MCP Server + 54 工具 + 303 tests | ✅ | `40f30cc` |
-| 3.2 | Agent 配置 + 种子数据 | ⏳ | — |
+| 3.2 | Agent 配置 + 种子数据 + MCP 连接配置 | ✅ | `78918db` |
 | 3.3 | OpenCode 集成配置 | ⏳ | — |
 | 4.1 | API 路由 | ⏳ | — |
 | 4.2 | SSE 实时推送 | ⏳ | — |
