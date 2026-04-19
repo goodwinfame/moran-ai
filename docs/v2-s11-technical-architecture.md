@@ -84,7 +84,7 @@ S2（架构总览）用 Mermaid 方块图描述了系统的逻辑拓扑和数据
 │  │  │  • LLM Provider 调用                        │  │   │
 │  │  │  │                                          │  │   │
 │  │  │  └── stdio ──► MCP Server (子进程)           │  │   │
-│  │  │                • 47 个工具 + 门禁             │  │   │
+│  │  │                • 48 个工具 + 门禁             │  │   │
 │  │  │                • Drizzle → PostgreSQL         │  │   │
 │  │  └────────────────────────────────────────────┘  │   │
 │  │                                                   │   │
@@ -238,14 +238,22 @@ packages/mcp-server/
 │   ├── tools/
 │   │   ├── index.ts             # 统一注册函数 registerAllTools(server)
 │   │   ├── project.ts           # project_read, project_update, gate_check
-│   │   ├── brainstorm.ts        # brainstorm_create/read/update
-│   │   ├── world.ts             # world_setting_*, location_*, glossary_*
-│   │   ├── character.ts         # character_*, relationship_*
-│   │   ├── writing.ts           # style_*, outline_*, chapter_*, context_assemble
-│   │   ├── review.ts            # review_round1–4
-│   │   ├── archive.ts           # summary_create, thread_update, timeline_*, arc_summary_*
-│   │   ├── knowledge.ts         # knowledge_read/write, lesson_learn/read
-│   │   └── analysis.ts          # analysis_run, analysis_read
+│   │   ├── brainstorm.ts        # brainstorm_create, brainstorm_read, brainstorm_update
+│   │   ├── world.ts             # world_create, world_read, world_update, world_delete, world_check
+│   │   ├── character.ts         # character_create, character_read, character_update, character_delete
+│   │   ├── character-state.ts   # character_state_create, character_state_read
+│   │   ├── relationship.ts      # relationship_create, relationship_read, relationship_update
+│   │   ├── style.ts             # style_create, style_read, style_update
+│   │   ├── outline.ts           # outline_create, outline_read, outline_update
+│   │   ├── chapter.ts           # chapter_create, chapter_read, chapter_update, chapter_archive
+│   │   ├── review.ts            # review_execute
+│   │   ├── summary.ts           # summary_create, summary_read
+│   │   ├── thread.ts            # thread_create, thread_read, thread_update
+│   │   ├── timeline.ts          # timeline_create, timeline_read
+│   │   ├── knowledge.ts         # knowledge_create, knowledge_read, knowledge_update, knowledge_delete
+│   │   ├── lesson.ts            # lesson_create, lesson_read, lesson_update
+│   │   ├── analysis.ts          # analysis_execute, analysis_read
+│   │   └── context.ts           # context_assemble
 │   └── utils/
 │       ├── response.ts          # 统一响应格式 { ok, data?, reason? }
 │       └── context.ts           # projectId 提取 + 公共查询
@@ -329,7 +337,7 @@ export const db = drizzle({
 
 ### 3.5 工具实现模式
 
-所有 47 个工具遵循统一模式：
+所有 48 个工具遵循统一模式（完整工具接口定义见 `docs/v2-s6-mcp-gates.md` §3）：
 
 ```typescript
 // packages/mcp-server/src/tools/character.ts
@@ -359,7 +367,7 @@ export function registerCharacterTools(server: McpServer) {
       // 1. 门禁检查
       const gate = await gateChecker.check(input.projectId, "character_design");
       if (!gate.passed) {
-        return fail(gate.reason);
+        return fail("GATE_FAILED", gate.reason, gate.details);
       }
 
       // 2. 执行 DB 操作
@@ -395,7 +403,7 @@ export function registerCharacterTools(server: McpServer) {
         const char = await db.query.characters.findFirst({
           where: eq(characters.id, input.characterId),
         });
-        return char ? ok(char) : fail("角色不存在");
+        return char ? ok(char) : fail("NOT_FOUND", "角色不存在");
       }
 
       const list = await db.query.characters.findMany({
@@ -409,7 +417,7 @@ export function registerCharacterTools(server: McpServer) {
 }
 ```
 
-**统一响应格式**：
+**统一响应格式**（详见 `docs/v2-s6-mcp-gates.md` §5、`specs/mcp-tools/SPEC.md` §4）：
 
 ```typescript
 // packages/mcp-server/src/utils/response.ts
@@ -425,11 +433,11 @@ export function ok(data: unknown) {
 }
 
 /** MCP 工具失败响应（门禁拒绝 / 业务错误） */
-export function fail(reason: string) {
+export function fail(code: string, message: string, details?: object) {
   return {
     content: [{
       type: "text" as const,
-      text: JSON.stringify({ ok: false, reason }),
+      text: JSON.stringify({ ok: false, error: { code, message, details } }),
     }],
   };
 }
