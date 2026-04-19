@@ -8,10 +8,10 @@
 /** Valid info-panel tab identifiers */
 export type TabId =
   | "brainstorm"
-  | "settings"
-  | "characters"
+  | "world"
+  | "character"
   | "outline"
-  | "chapters"
+  | "chapter"
   | "review"
   | "analysis"
   | "knowledge";
@@ -26,34 +26,34 @@ export const TOOL_TAB_MAP: Record<string, TabId> = {
   brainstorm_update: "brainstorm",
   brainstorm_patch: "brainstorm",
 
-  // ── Settings tab (world domain) ───────────────────────────────────────
-  world_create: "settings",
-  world_update: "settings",
-  world_delete: "settings",
-  world_patch: "settings",
+  // ── World tab (world domain) ──────────────────────────────────────────
+  world_create: "world",
+  world_update: "world",
+  world_delete: "world",
+  world_patch: "world",
 
-  // ── Characters tab ────────────────────────────────────────────────────
-  character_create: "characters",
-  character_update: "characters",
-  character_delete: "characters",
-  character_patch: "characters",
-  character_state_create: "characters",
-  relationship_create: "characters",
-  relationship_update: "characters",
+  // ── Character tab ─────────────────────────────────────────────────────
+  character_create: "character",
+  character_update: "character",
+  character_delete: "character",
+  character_patch: "character",
+  character_state_create: "character",
+  relationship_create: "character",
+  relationship_update: "character",
 
   // ── Outline tab ───────────────────────────────────────────────────────
   outline_create: "outline",
   outline_update: "outline",
   outline_patch: "outline",
 
-  // ── Chapters tab ──────────────────────────────────────────────────────
-  chapter_create: "chapters",
-  chapter_update: "chapters",
-  chapter_archive: "chapters",
-  chapter_patch: "chapters",
-  style_create: "chapters",
-  style_update: "chapters",
-  summary_create: "chapters",
+  // ── Chapter tab ───────────────────────────────────────────────────────
+  chapter_create: "chapter",
+  chapter_update: "chapter",
+  chapter_archive: "chapter",
+  chapter_patch: "chapter",
+  style_create: "chapter",
+  style_update: "chapter",
+  summary_create: "chapter",
 
   // ── Review tab ────────────────────────────────────────────────────────
   review_execute: "review",

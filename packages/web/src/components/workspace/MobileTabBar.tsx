@@ -8,6 +8,7 @@
 
 import { useState } from "react";
 import { cn } from "@/lib/utils";
+import { InfoPanel } from "@/components/panel/InfoPanel";
 
 type TabKey = "chat" | "panel";
 
@@ -15,7 +16,7 @@ interface MobileTabBarProps {
   projectId: string;
 }
 
-export function MobileTabBar({ projectId: _projectId }: MobileTabBarProps) {
+export function MobileTabBar({ projectId }: MobileTabBarProps) {
   const [activeTab, setActiveTab] = useState<TabKey>("chat");
 
   return (
@@ -32,9 +33,9 @@ export function MobileTabBar({ projectId: _projectId }: MobileTabBarProps) {
         ) : (
           <div
             data-testid="mobile-panel-content"
-            className="h-full bg-background border-l"
+            className="h-full"
           >
-            {/* InfoPanel placeholder */}
+            <InfoPanel projectId={projectId} />
           </div>
         )}
       </div>

@@ -10,6 +10,7 @@
 import { useState, useCallback, useRef, useEffect } from "react";
 import { ResizableSplitter } from "@/components/workspace/ResizableSplitter";
 import { MobileTabBar } from "@/components/workspace/MobileTabBar";
+import { InfoPanel } from "@/components/panel/InfoPanel";
 
 // ── Constants ─────────────────────────────────────────────────────────────────
 
@@ -142,13 +143,13 @@ export function WorkspacePage({ projectId }: WorkspacePageProps) {
         onDoubleClick={handleDoubleClick}
       />
 
-      {/* Right panel — InfoPanel placeholder */}
+      {/* Right panel — InfoPanel */}
       <div
         data-testid="right-panel"
         style={{ width: `${(1 - splitRatio) * 100}%` }}
         className="flex-1 overflow-hidden"
       >
-        <div className="h-full bg-background border-l" />
+        <InfoPanel projectId={projectId} />
       </div>
     </div>
   );

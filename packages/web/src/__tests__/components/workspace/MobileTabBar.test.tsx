@@ -2,7 +2,14 @@
  * Tests for MobileTabBar component
  */
 import { render, screen, fireEvent } from "@testing-library/react";
-import { describe, it, expect } from "vitest";
+import { describe, it, expect, vi } from "vitest";
+
+// Mock idb-keyval (used by panel-store via InfoPanel)
+vi.mock("idb-keyval", () => ({
+  get: vi.fn().mockResolvedValue(undefined),
+  set: vi.fn().mockResolvedValue(undefined),
+}));
+
 import { MobileTabBar } from "@/components/workspace/MobileTabBar";
 
 describe("MobileTabBar", () => {

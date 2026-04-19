@@ -18,14 +18,14 @@ describe("routeToolResultToTab()", () => {
     expect(routeToolResultToTab("brainstorm_patch")).toBe("brainstorm");
   });
 
-  it("maps world tools to 'settings'", () => {
-    expect(routeToolResultToTab("world_create")).toBe("settings");
-    expect(routeToolResultToTab("world_update")).toBe("settings");
-    expect(routeToolResultToTab("world_delete")).toBe("settings");
-    expect(routeToolResultToTab("world_patch")).toBe("settings");
+  it("maps world tools to 'world'", () => {
+    expect(routeToolResultToTab("world_create")).toBe("world");
+    expect(routeToolResultToTab("world_update")).toBe("world");
+    expect(routeToolResultToTab("world_delete")).toBe("world");
+    expect(routeToolResultToTab("world_patch")).toBe("world");
   });
 
-  it("maps character tools to 'characters'", () => {
+  it("maps character tools to 'character'", () => {
     const tools = [
       "character_create",
       "character_update",
@@ -36,7 +36,7 @@ describe("routeToolResultToTab()", () => {
       "relationship_update",
     ];
     for (const t of tools) {
-      expect(routeToolResultToTab(t), t).toBe("characters");
+      expect(routeToolResultToTab(t), t).toBe("character");
     }
   });
 
@@ -46,7 +46,7 @@ describe("routeToolResultToTab()", () => {
     expect(routeToolResultToTab("outline_patch")).toBe("outline");
   });
 
-  it("maps chapter/style/summary tools to 'chapters'", () => {
+  it("maps chapter/style/summary tools to 'chapter'", () => {
     const tools = [
       "chapter_create",
       "chapter_update",
@@ -57,7 +57,7 @@ describe("routeToolResultToTab()", () => {
       "summary_create",
     ];
     for (const t of tools) {
-      expect(routeToolResultToTab(t), t).toBe("chapters");
+      expect(routeToolResultToTab(t), t).toBe("chapter");
     }
   });
 
@@ -96,10 +96,10 @@ describe("routeToolResultToTab()", () => {
     const tabIds = new Set(Object.values(TOOL_TAB_MAP));
     const expected: TabId[] = [
       "brainstorm",
-      "settings",
-      "characters",
+      "world",
+      "character",
       "outline",
-      "chapters",
+      "chapter",
       "review",
       "analysis",
       "knowledge",
@@ -121,9 +121,9 @@ describe("handleAutoSwitch()", () => {
 
   it("returns 'switch' when user last acted more than 10s ago", () => {
     const longAgo = Date.now() - 15_000;
-    const result = handleAutoSwitch("characters", longAgo);
+    const result = handleAutoSwitch("character", longAgo);
     expect(result.action).toBe("switch");
-    expect(result.tab).toBe("characters");
+    expect(result.tab).toBe("character");
   });
 
   it("returns 'badge' when user acted less than 10s ago", () => {
@@ -135,7 +135,7 @@ describe("handleAutoSwitch()", () => {
 
   it("returns 'badge' when user acted exactly 9999ms ago (within 10s boundary)", () => {
     const justUnder10s = Date.now() - 9_999;
-    const result = handleAutoSwitch("chapters", justUnder10s);
+    const result = handleAutoSwitch("chapter", justUnder10s);
     expect(result.action).toBe("badge");
   });
 

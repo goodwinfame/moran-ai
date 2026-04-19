@@ -3,6 +3,13 @@
  */
 import { render, screen, fireEvent, act } from "@testing-library/react";
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
+
+// Mock idb-keyval (used by panel-store via InfoPanel)
+vi.mock("idb-keyval", () => ({
+  get: vi.fn().mockResolvedValue(undefined),
+  set: vi.fn().mockResolvedValue(undefined),
+}));
+
 import { WorkspacePage } from "@/components/workspace/WorkspacePage";
 
 // ── localStorage mock ─────────────────────────────────────────────────────────
