@@ -165,7 +165,7 @@ export class OpenCodeSessionManager {
     const now = Date.now();
     let count = 0;
     for (const [k, s] of this.sessions) {
-      if (now - s.lastActiveAt > this.ttlMs) {
+      if (now - s.lastActiveAt >= this.ttlMs) {
         this.sessions.delete(k);
         count++;
       }

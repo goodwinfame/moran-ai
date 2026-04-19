@@ -196,6 +196,56 @@ describe("POST /api/chat/send", () => {
   });
 });
 
+// ── GET /api/chat/session ────────────────────────────────────────────────────
+
+describe("GET /api/chat/session", () => {
+  it("returns sessionId for the given projectId", async () => {
+    authenticatedSession();
+    mockGetOrCreateSession.mockResolvedValue("session-xyz");
+
+    const res = await jsonGet("/api/chat/session?projectId=proj-1");
+
+    expect(res.status).toBe(200);
+    const body = await res.json();
+    expect(body.ok).toBe(true);
+    expect(body.data.sessionId).toBe("session-xyz");
+
+    expect(mockGetOrCreateSession).toHaveBeenCalledWith("user-1", "proj-1");
+  });
+
+  it("returns 400 when projectId is missing", async () => {
+    authenticatedSession();
+
+    const res = await jsonGet("/api/chat/session");
+
+    expect(res.status).toBe(400);
+    expect(mockGetOrCreateSession).not.toHaveBeenCalled();
+  });
+
+  it("returns 500 when session creation fails", async () => {
+    authenticatedSession();
+    mockGetOrCreateSession.mockRejectedValue(new Error("OpenCode unavailable"));
+
+    const res = await jsonGet("/api/chat/session?projectId=proj-1");
+
+    expect(res.status).toBe(500);
+    const body = await res.json();
+    expect(body.ok).toBe(false);
+    expect(body.error.code).toBe("INTERNAL_ERROR");
+    expect(body.error.message).toBe("OpenCode unavailable");
+  });
+
+  it("returns 401 when unauthenticated", async () => {
+    const res = await testApp.request(
+      "/api/chat/session?projectId=proj-1",
+      { method: "GET" },
+    );
+
+    expect(res.status).toBe(401);
+    expect(mockGetOrCreateSession).not.toHaveBeenCalled();
+  });
+});
+
 // ── GET /api/chat/history ────────────────────────────────────────────────────
 
 describe("GET /api/chat/history", () => {
@@ -261,6 +311,55 @@ describe("GET /api/chat/history", () => {
     const body = await res.json();
     expect(body.ok).toBe(false);
     expect(body.error.code).toBe("INTERNAL_ERROR");
+  });
+});
+
+// ── GET /api/chat/session ────────────────────────────────────────────────────
+
+describe("GET /api/chat/session", () => {
+  it("returns sessionId for the given projectId", async () => {
+    authenticatedSession();
+    mockGetOrCreateSession.mockResolvedValue("session-xyz");
+
+    const res = await jsonGet("/api/chat/session?projectId=proj-1");
+
+    expect(res.status).toBe(200);
+    const body = await res.json();
+    expect(body.ok).toBe(true);
+    expect(body.data.sessionId).toBe("session-xyz");
+
+    expect(mockGetOrCreateSession).toHaveBeenCalledWith("user-1", "proj-1");
+  });
+
+  it("returns 400 when projectId is missing", async () => {
+    authenticatedSession();
+
+    const res = await jsonGet("/api/chat/session");
+
+    expect(res.status).toBe(400);
+    expect(mockGetOrCreateSession).not.toHaveBeenCalled();
+  });
+
+  it("returns 500 when session creation throws", async () => {
+    authenticatedSession();
+    mockGetOrCreateSession.mockRejectedValue(new Error("OpenCode down"));
+
+    const res = await jsonGet("/api/chat/session?projectId=proj-1");
+
+    expect(res.status).toBe(500);
+    const body = await res.json();
+    expect(body.ok).toBe(false);
+    expect(body.error.code).toBe("INTERNAL_ERROR");
+    expect(body.error.message).toBe("OpenCode down");
+  });
+
+  it("returns 401 when unauthenticated", async () => {
+    const res = await testApp.request("/api/chat/session?projectId=proj-1", {
+      method: "GET",
+    });
+
+    expect(res.status).toBe(401);
+    expect(mockGetOrCreateSession).not.toHaveBeenCalled();
   });
 });
 

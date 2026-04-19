@@ -11,6 +11,7 @@ import { useState, useCallback, useRef, useEffect } from "react";
 import { ResizableSplitter } from "@/components/workspace/ResizableSplitter";
 import { MobileTabBar } from "@/components/workspace/MobileTabBar";
 import { InfoPanel } from "@/components/panel/InfoPanel";
+import { ChatPanel } from "@/components/chat/ChatPanel";
 
 // ── Constants ─────────────────────────────────────────────────────────────────
 
@@ -134,7 +135,7 @@ export function WorkspacePage({ projectId }: WorkspacePageProps) {
         className="flex-shrink-0 overflow-hidden"
       >
         <div className="h-full flex flex-col">
-          {/* ChatPanel placeholder — Phase 5.2 Agent B */}
+          <ChatPanel projectId={projectId} />
         </div>
       </div>
 

@@ -10,6 +10,13 @@ vi.mock("idb-keyval", () => ({
   set: vi.fn().mockResolvedValue(undefined),
 }));
 
+// Mock ChatPanel to avoid rendering full chat stack
+vi.mock("@/components/chat/ChatPanel", () => ({
+  ChatPanel: ({ projectId }: { projectId: string }) => (
+    <div data-testid="chat-panel" data-project-id={projectId} />
+  ),
+}));
+
 import { WorkspacePage } from "@/components/workspace/WorkspacePage";
 
 // ── localStorage mock ─────────────────────────────────────────────────────────

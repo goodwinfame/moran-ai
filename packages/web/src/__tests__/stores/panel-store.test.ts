@@ -9,6 +9,13 @@ vi.mock("idb-keyval", () => ({
   set: vi.fn().mockResolvedValue(undefined),
 }));
 
+// Mock @/lib/api
+vi.mock("@/lib/api", () => ({
+  api: {
+    get: vi.fn(),
+  },
+}));
+
 import { usePanelStore } from "@/stores/panel-store";
 import type { TabId, BadgeType } from "@/stores/panel-store";
 
@@ -228,6 +235,234 @@ describe("usePanelStore", () => {
       const { get } = await import("idb-keyval");
       (get as ReturnType<typeof vi.fn>).mockResolvedValueOnce(undefined);
       await expect(usePanelStore.getState().initFromCache("proj-empty")).resolves.not.toThrow();
+    });
+  });
+
+  describe("fetchInitialData()", () => {
+    async function getMockApiGet() {
+      const { api } = await import("@/lib/api");
+      return api.get as ReturnType<typeof vi.fn>;
+    }
+
+    function setupAllSucceed(mockGet: ReturnType<typeof vi.fn>) {
+      mockGet
+        .mockResolvedValueOnce({ ok: true, data: [] })  // brainstorms
+        .mockResolvedValueOnce({ ok: true, data: [] })  // world-settings
+        .mockResolvedValueOnce({ ok: true, data: [] })  // characters
+        .mockResolvedValueOnce({ ok: true, data: { outline: null, arcs: [] } })  // outline
+        .mockResolvedValueOnce({ ok: true, data: [] }); // chapters
+    }
+
+    it("resolves without throwing when all API calls succeed", async () => {
+      const mockGet = await getMockApiGet();
+      setupAllSucceed(mockGet);
+      await expect(
+        usePanelStore.getState().fetchInitialData("proj-1"),
+      ).resolves.not.toThrow();
+    });
+
+    it("resolves without throwing when all API calls fail", async () => {
+      const mockGet = await getMockApiGet();
+      mockGet.mockRejectedValue(new Error("Network error"));
+      await expect(
+        usePanelStore.getState().fetchInitialData("proj-1"),
+      ).resolves.not.toThrow();
+    });
+
+    it("updates brainstorm diverge from API data", async () => {
+      const mockGet = await getMockApiGet();
+      mockGet
+        .mockResolvedValueOnce({
+          ok: true,
+          data: [{ id: "b1", title: "玄幻方向" }, { id: "b2", title: null }],
+        })
+        .mockResolvedValueOnce({ ok: true, data: [] })
+        .mockResolvedValueOnce({ ok: true, data: [] })
+        .mockResolvedValueOnce({ ok: true, data: { outline: null, arcs: [] } })
+        .mockResolvedValueOnce({ ok: true, data: [] });
+
+      await usePanelStore.getState().fetchInitialData("proj-1");
+
+      const brainstorm = usePanelStore.getState().brainstorm;
+      expect(brainstorm?.diverge).toHaveLength(2);
+      expect(brainstorm?.diverge[0]?.title).toBe("玄幻方向");
+      expect(brainstorm?.diverge[1]?.title).toBe("");
+    });
+
+    it("updates characters from API data", async () => {
+      const mockGet = await getMockApiGet();
+      mockGet
+        .mockResolvedValueOnce({ ok: true, data: [] })
+        .mockResolvedValueOnce({ ok: true, data: [] })
+        .mockResolvedValueOnce({
+          ok: true,
+          data: [
+            {
+              id: "c1",
+              name: "主角",
+              role: "protagonist",
+              designTier: "核心层",
+              description: "勇敢的少年",
+              personality: "乐观",
+              background: null,
+              arc: "成长弧",
+            },
+          ],
+        })
+        .mockResolvedValueOnce({ ok: true, data: { outline: null, arcs: [] } })
+        .mockResolvedValueOnce({ ok: true, data: [] });
+
+      await usePanelStore.getState().fetchInitialData("proj-1");
+
+      const chars = usePanelStore.getState().characters;
+      expect(chars?.characters).toHaveLength(1);
+      expect(chars?.characters[0]?.name).toBe("主角");
+      expect(chars?.characters[0]?.designTier).toBe("核心层");
+      expect(chars?.characters[0]?.oneLiner).toBe("勇敢的少年");
+      expect(chars?.filterRole).toBeNull();
+    });
+
+    it("defaults unknown designTier to 支撑层", async () => {
+      const mockGet = await getMockApiGet();
+      mockGet
+        .mockResolvedValueOnce({ ok: true, data: [] })
+        .mockResolvedValueOnce({ ok: true, data: [] })
+        .mockResolvedValueOnce({
+          ok: true,
+          data: [
+            {
+              id: "c1",
+              name: "配角",
+              role: null,
+              designTier: null,
+              description: null,
+              personality: null,
+              background: null,
+              arc: null,
+            },
+          ],
+        })
+        .mockResolvedValueOnce({ ok: true, data: { outline: null, arcs: [] } })
+        .mockResolvedValueOnce({ ok: true, data: [] });
+
+      await usePanelStore.getState().fetchInitialData("proj-1");
+
+      const chars = usePanelStore.getState().characters;
+      expect(chars?.characters[0]?.designTier).toBe("支撑层");
+      expect(chars?.characters[0]?.role).toBe("supporting");
+    });
+
+    it("updates chapters list from API data", async () => {
+      const mockGet = await getMockApiGet();
+      mockGet
+        .mockResolvedValueOnce({ ok: true, data: [] })
+        .mockResolvedValueOnce({ ok: true, data: [] })
+        .mockResolvedValueOnce({ ok: true, data: [] })
+        .mockResolvedValueOnce({ ok: true, data: { outline: null, arcs: [] } })
+        .mockResolvedValueOnce({
+          ok: true,
+          data: [
+            { chapterNumber: 1, title: "第一章", wordCount: 3200, status: "archived" },
+            { chapterNumber: 2, title: null, wordCount: null, status: null },
+          ],
+        });
+
+      await usePanelStore.getState().fetchInitialData("proj-1");
+
+      const chapters = usePanelStore.getState().chapters;
+      expect(chapters?.chapterList).toHaveLength(2);
+      expect(chapters?.chapterList[0]?.number).toBe(1);
+      expect(chapters?.chapterList[0]?.title).toBe("第一章");
+      expect(chapters?.chapterList[0]?.wordCount).toBe(3200);
+      expect(chapters?.chapterList[1]?.title).toBe("");
+      expect(chapters?.chapterList[1]?.wordCount).toBe(0);
+      expect(chapters?.chapterList[1]?.status).toBe("pending");
+    });
+
+    it("updates outline arcs from API data", async () => {
+      const mockGet = await getMockApiGet();
+      mockGet
+        .mockResolvedValueOnce({ ok: true, data: [] })
+        .mockResolvedValueOnce({ ok: true, data: [] })
+        .mockResolvedValueOnce({ ok: true, data: [] })
+        .mockResolvedValueOnce({
+          ok: true,
+          data: {
+            outline: null,
+            arcs: [{ id: "arc-1", title: "第一卷", startChapter: 1, endChapter: 20 }],
+          },
+        })
+        .mockResolvedValueOnce({ ok: true, data: [] });
+
+      await usePanelStore.getState().fetchInitialData("proj-1");
+
+      const outline = usePanelStore.getState().outline;
+      expect(outline?.arcs).toHaveLength(1);
+      expect(outline?.arcs[0]?.title).toBe("第一卷");
+      expect(outline?.arcs[0]?.chapterRange).toBe("1–20");
+    });
+
+    it("updates world categories from world-settings sections", async () => {
+      const mockGet = await getMockApiGet();
+      mockGet
+        .mockResolvedValueOnce({ ok: true, data: [] })
+        .mockResolvedValueOnce({
+          ok: true,
+          data: [
+            { id: "w1", section: "geography", name: "大陆" },
+            { id: "w2", section: "magic", name: "魔法体系" },
+            { id: "w3", section: "geography", name: "海洋" },
+          ],
+        })
+        .mockResolvedValueOnce({ ok: true, data: [] })
+        .mockResolvedValueOnce({ ok: true, data: { outline: null, arcs: [] } })
+        .mockResolvedValueOnce({ ok: true, data: [] });
+
+      await usePanelStore.getState().fetchInitialData("proj-1");
+
+      const world = usePanelStore.getState().world;
+      expect(world?.categories).toHaveLength(2);
+      expect(world?.categories).toContain("geography");
+      expect(world?.categories).toContain("magic");
+    });
+
+    it("does not overwrite existing brainstorm converge/crystal when setting diverge", async () => {
+      usePanelStore.setState({
+        brainstorm: {
+          diverge: [],
+          converge: { selectedDirections: [], genre: "玄幻", coreConflict: "", targetAudience: "" },
+          crystal: null,
+        },
+      });
+
+      const mockGet = await getMockApiGet();
+      mockGet
+        .mockResolvedValueOnce({ ok: true, data: [{ id: "b1", title: "New" }] })
+        .mockResolvedValueOnce({ ok: true, data: [] })
+        .mockResolvedValueOnce({ ok: true, data: [] })
+        .mockResolvedValueOnce({ ok: true, data: { outline: null, arcs: [] } })
+        .mockResolvedValueOnce({ ok: true, data: [] });
+
+      await usePanelStore.getState().fetchInitialData("proj-1");
+
+      const brainstorm = usePanelStore.getState().brainstorm;
+      expect(brainstorm?.converge?.genre).toBe("玄幻");
+      expect(brainstorm?.diverge).toHaveLength(1);
+    });
+
+    it("skips update when API returns ok: false", async () => {
+      const mockGet = await getMockApiGet();
+      mockGet
+        .mockResolvedValueOnce({ ok: false, error: { code: "NOT_FOUND", message: "not found" } })
+        .mockResolvedValueOnce({ ok: true, data: [] })
+        .mockResolvedValueOnce({ ok: true, data: [] })
+        .mockResolvedValueOnce({ ok: true, data: { outline: null, arcs: [] } })
+        .mockResolvedValueOnce({ ok: true, data: [] });
+
+      await usePanelStore.getState().fetchInitialData("proj-1");
+
+      // brainstorm should remain null since API returned ok: false
+      expect(usePanelStore.getState().brainstorm).toBeNull();
     });
   });
 });

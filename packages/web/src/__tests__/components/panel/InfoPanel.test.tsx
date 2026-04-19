@@ -10,6 +10,13 @@ vi.mock("idb-keyval", () => ({
   set: vi.fn().mockResolvedValue(undefined),
 }));
 
+// Mock api to prevent fetchInitialData from making real network calls
+vi.mock("@/lib/api", () => ({
+  api: {
+    get: vi.fn().mockResolvedValue({ ok: true, data: [] }),
+  },
+}));
+
 // Mock lazy tab components — named exports for tabs that use named exports,
 // default export for tabs that use default exports (analysis, knowledge).
 vi.mock("@/components/panel/tabs/BrainstormTab", () => ({ BrainstormTab: () => <div data-testid="brainstorm-tab" /> }));

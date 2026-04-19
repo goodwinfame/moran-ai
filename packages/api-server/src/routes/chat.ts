@@ -4,6 +4,7 @@
  * POST /send    — Send user message to OpenCode session (fire-and-forget)
  * GET  /events  — SSE event stream (Phase 4.2: transformer + broadcaster + heartbeat)
  * GET  /history — Fetch message history from OpenCode session
+ * GET  /session — Get (or create) OpenCode sessionId for a project
  *
  * All routes require authentication (mounted after requireAuth in app.ts).
  */
@@ -37,6 +38,10 @@ const historyQuerySchema = z.object({
   projectId: z.string(),
   limit: z.coerce.number().int().positive().default(50),
   before: z.string().optional(),
+});
+
+const sessionQuerySchema = z.object({
+  projectId: z.string(),
 });
 
 // ── Route factory ──────────────────────────────────────────────────────────
@@ -138,6 +143,23 @@ export function createChatRoutes() {
         close();
       }
     });
+  });
+
+  /**
+   * GET /api/chat/session
+   * Returns the OpenCode sessionId for the given project.
+   * Creates a new session if one does not already exist.
+   */
+  chat.get("/session", zValidator("query", sessionQuerySchema), async (c) => {
+    const { projectId } = c.req.valid("query");
+    const userId = c.get("userId");
+    try {
+      const sessionId = await sessionManager.getOrCreateSession(userId, projectId);
+      return ok(c, { sessionId });
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : "Failed to get session";
+      return fail(c, "INTERNAL_ERROR", msg, 500);
+    }
   });
 
   /**

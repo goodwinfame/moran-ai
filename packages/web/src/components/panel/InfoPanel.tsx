@@ -52,10 +52,15 @@ export function InfoPanel({ projectId }: InfoPanelProps) {
   const activeTab = usePanelStore((s) => s.activeTab);
   const visibleTabs = usePanelStore((s) => s.visibleTabs);
   const initFromCache = usePanelStore((s) => s.initFromCache);
+  const fetchInitialData = usePanelStore((s) => s.fetchInitialData);
 
   useEffect(() => {
-    void initFromCache(projectId);
-  }, [projectId, initFromCache]);
+    const init = async () => {
+      await initFromCache(projectId);
+      await fetchInitialData(projectId);
+    };
+    void init();
+  }, [projectId, initFromCache, fetchInitialData]);
 
   const hasVisibleTabs = visibleTabs.length > 0;
 
