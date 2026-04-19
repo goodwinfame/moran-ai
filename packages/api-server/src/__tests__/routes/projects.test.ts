@@ -226,6 +226,52 @@ describe("PATCH /api/projects/:id", () => {
     expect(res.status).toBe(400);
     expect(mockProjectUpdate).not.toHaveBeenCalled();
   });
+
+  it("accepts settings field in PATCH body", async () => {
+    const updated = {
+      id: "proj-1",
+      title: "Novel",
+      settings: { budgetLimitUsd: 50, budgetBehavior: "pause" },
+      userId: "test-user",
+    };
+    mockProjectUpdate.mockResolvedValue({ ok: true, data: updated });
+
+    const res = await patch("/api/projects/proj-1", {
+      settings: {
+        budgetLimitUsd: 50,
+        budgetBehavior: "pause",
+        writingParams: { chapterWordCount: 3000 },
+      },
+    });
+
+    expect(res.status).toBe(200);
+    const body = await res.json();
+    expect(body.ok).toBe(true);
+    expect(mockProjectUpdate).toHaveBeenCalledWith(
+      "proj-1",
+      expect.objectContaining({
+        settings: expect.objectContaining({ budgetLimitUsd: 50 }),
+      }),
+    );
+  });
+
+  it("rejects settings with invalid budgetLimitUsd (negative)", async () => {
+    const res = await patch("/api/projects/proj-1", {
+      settings: { budgetLimitUsd: -1 },
+    });
+
+    expect(res.status).toBe(400);
+    expect(mockProjectUpdate).not.toHaveBeenCalled();
+  });
+
+  it("rejects settings with invalid writingParams temperature out of range", async () => {
+    const res = await patch("/api/projects/proj-1", {
+      settings: { writingParams: { temperature: 5 } },
+    });
+
+    expect(res.status).toBe(400);
+    expect(mockProjectUpdate).not.toHaveBeenCalled();
+  });
 });
 
 // ── DELETE /api/projects/:id ──────────────────────────────────────────────────

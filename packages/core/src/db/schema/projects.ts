@@ -1,6 +1,19 @@
-import { integer, pgTable, text, timestamp, uuid, varchar } from "drizzle-orm/pg-core";
+import { integer, jsonb, pgTable, text, timestamp, uuid, varchar } from "drizzle-orm/pg-core";
 import { projectStatusEnum } from "./enums.js";
 import { users } from "./auth.js";
+
+export interface ProjectSettings {
+  writerStyle?: { styleName: string; model?: string };
+  modelOverrides?: Record<string, string>;
+  budgetLimitUsd?: number;
+  budgetBehavior?: "pause" | "warn";
+  writingParams?: {
+    chapterWordCount?: number;
+    temperature?: number;
+    topP?: number;
+    reviewThreshold?: number;
+  };
+}
 
 export const projects = pgTable("projects", {
   id: uuid("id").primaryKey().defaultRandom(),
@@ -24,6 +37,7 @@ export const projects = pgTable("projects", {
     .notNull()
     .references(() => users.id, { onDelete: "cascade" }),
   currentSessionId: text("current_session_id"),
+  settings: jsonb("settings").$type<ProjectSettings>().default({}),
   createdAt: timestamp("created_at", { withTimezone: true }).defaultNow(),
   updatedAt: timestamp("updated_at", { withTimezone: true }).defaultNow(),
 });

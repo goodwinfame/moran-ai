@@ -23,6 +23,21 @@ const updateProjectSchema = z.object({
   genre: z.string().max(100).optional(),
   subGenre: z.string().max(100).optional(),
   status: z.enum(PROJECT_STATUSES).optional(),
+  settings: z.object({
+    writerStyle: z.object({
+      styleName: z.string(),
+      model: z.string().optional(),
+    }).optional(),
+    modelOverrides: z.record(z.string(), z.string()).optional(),
+    budgetLimitUsd: z.number().min(0).optional(),
+    budgetBehavior: z.enum(["pause", "warn"]).optional(),
+    writingParams: z.object({
+      chapterWordCount: z.number().int().positive().optional(),
+      temperature: z.number().min(0).max(2).optional(),
+      topP: z.number().min(0).max(1).optional(),
+      reviewThreshold: z.number().min(0).max(100).optional(),
+    }).optional(),
+  }).optional(),
 });
 
 function errorStatus(code: string): 400 | 401 | 403 | 404 | 500 {
