@@ -279,9 +279,10 @@ DB 枚举 `characterRoleEnum`（`packages/core/src/db/schema/enums.ts`）缺少 
 | `docs/v2-s8-error-recovery.md` | 错误恢复 | 参考 |
 | `docs/v2-s9-inheritance.md` | V1 继承策略 | 参考 |
 | `docs/v2-s10-roadmap.md` | 路线图 | 参考 |
+| **`docs/v2-s11-technical-architecture.md`** | **技术方案设计** | **基准文档** |
 
 > V1 设计文档（`docs/project-design-s*.md`）已归档为历史参考，不再作为实现依据。
-> 当 V2 文档间有冲突时，以 `v2-s4-ui-design.md` 为准。
+> 当 V2 文档间有冲突时，技术决策以 `v2-s11-technical-architecture.md` 为准，产品/UI 决策以 `v2-s4-ui-design.md` 为准。
 
 ---
 
@@ -308,7 +309,7 @@ DB 枚举 `characterRoleEnum`（`packages/core/src/db/schema/enums.ts`）缺少 
 
 | 阶段 | 状态 | 说明 |
 |------|------|------|
-| 设计文档 | ✅ 完成 | 11 篇 V2 设计文档 |
+| 设计文档 | ✅ 完成 | 12 篇 V2 设计文档（含 S11 技术方案） |
 | SDD 基础设施 | 🔄 进行中 | specs/ 目录、开发流程建立 |
 | 文档一致性修复 | ⏳ 待开始 | 修复 V2 文档间的不一致 |
 | V1 代码清理 | ⏳ 待开始 | 删除无用代码，保留基础设施 |
