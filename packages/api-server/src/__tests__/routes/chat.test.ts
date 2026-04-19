@@ -6,8 +6,10 @@
  * production setup: requireAuth middleware → chat routes.
  *
  * Mocks:
- *   @moran/core/services   — auth service (for requireAuth middleware)
- *   ../../opencode/manager.js — sessionManager singleton
+ *   @moran/core/services        — auth service (for requireAuth middleware)
+ *   ../../opencode/manager.js   — sessionManager singleton
+ *   ../../sse/broadcaster.js    — broadcaster singleton + SSEBroadcaster class
+ *   ../../sse/transformer.js    — EventTransformer class
  */
 import { describe, expect, it, vi, beforeEach } from "vitest";
 
@@ -33,6 +35,33 @@ vi.mock("../../opencode/manager.js", () => ({
     getMessages: (...args: unknown[]) => mockGetMessages(...args),
     subscribeEvents: (...args: unknown[]) => mockSubscribeEvents(...args),
   },
+}));
+
+// ── Hoisted mock objects (must be defined before vi.mock factories run) ─────
+const { mockBroadcaster, mockTransform } = vi.hoisted(() => {
+  const mockBroadcaster = {
+    addConnection: vi.fn(),
+    removeConnection: vi.fn(),
+    broadcast: vi.fn().mockResolvedValue(undefined),
+    buffer: vi.fn(),
+    replay: vi.fn().mockReturnValue([]),
+    cleanup: vi.fn(),
+  };
+  const mockTransform = vi.fn().mockReturnValue(null);
+  return { mockBroadcaster, mockTransform };
+});
+
+// ── Mock SSEBroadcaster + broadcaster singleton ─────────────────────────────
+vi.mock("../../sse/broadcaster.js", () => ({
+  broadcaster: mockBroadcaster,
+  SSEBroadcaster: vi.fn().mockImplementation(() => mockBroadcaster),
+}));
+
+// ── Mock EventTransformer ───────────────────────────────────────────────────
+vi.mock("../../sse/transformer.js", () => ({
+  EventTransformer: vi.fn().mockImplementation(() => ({
+    transform: mockTransform,
+  })),
 }));
 
 // Imports after mocks
@@ -72,6 +101,9 @@ function jsonGet(path: string) {
 
 beforeEach(() => {
   vi.clearAllMocks();
+  // Reset broadcaster mock defaults after clearAllMocks
+  mockBroadcaster.broadcast.mockResolvedValue(undefined);
+  mockBroadcaster.replay.mockReturnValue([]);
 });
 
 // ── POST /api/chat/send ──────────────────────────────────────────────────────
@@ -273,5 +305,93 @@ describe("GET /api/chat/events", () => {
 
     expect(res.status).toBe(401);
     expect(mockSubscribeEvents).not.toHaveBeenCalled();
+  });
+
+  it("registers and removes connection from broadcaster", async () => {
+    authenticatedSession();
+    mockSubscribeEvents.mockReturnValue({
+      stream: new ReadableStream({
+        start(controller) {
+          controller.close();
+        },
+      }),
+      close: vi.fn(),
+    });
+
+    await testApp.request(
+      "/api/chat/events?sessionId=session-abc",
+      { method: "GET", headers: AUTH_HEADER },
+    );
+
+    expect(mockBroadcaster.addConnection).toHaveBeenCalledWith(
+      "session-abc",
+      expect.objectContaining({ connId: expect.any(String) }),
+    );
+    expect(mockBroadcaster.removeConnection).toHaveBeenCalledWith(
+      "session-abc",
+      expect.objectContaining({ connId: expect.any(String) }),
+    );
+  });
+
+  it("replays missed events when Last-Event-Id header is present", async () => {
+    authenticatedSession();
+    const replayEvents = [
+      { id: 6, type: "text" as const, data: { chunk: "..." }, timestamp: Date.now() },
+    ];
+    mockBroadcaster.replay.mockReturnValue(replayEvents);
+    mockSubscribeEvents.mockReturnValue({
+      stream: new ReadableStream({ start(c) { c.close(); } }),
+      close: vi.fn(),
+    });
+
+    const res = await testApp.request(
+      "/api/chat/events?sessionId=session-abc",
+      {
+        method: "GET",
+        headers: { ...AUTH_HEADER, "Last-Event-Id": "5" },
+      },
+    );
+
+    expect(mockBroadcaster.replay).toHaveBeenCalledWith("session-abc", 5);
+    // Response should contain the replayed event in the SSE body
+    const body = await res.text();
+    expect(body).toContain("id: 6");
+    expect(body).toContain("event: text");
+  });
+
+  it("transforms events via EventTransformer and broadcasts them", async () => {
+    authenticatedSession();
+
+    const rawEvent = { type: "session.event.part.text", sessionId: "session-abc", data: { chunk: "hi" } };
+    const transformedEvent = { id: 1, type: "text" as const, data: { chunk: "hi" }, timestamp: Date.now() };
+    mockTransform.mockReturnValue(transformedEvent);
+
+    let enqueueEvent: ((event: unknown) => void) | undefined;
+    mockSubscribeEvents.mockReturnValue({
+      stream: new ReadableStream({
+        start(controller) {
+          enqueueEvent = (ev) => {
+            controller.enqueue(ev);
+            controller.close();
+          };
+        },
+      }),
+      close: vi.fn(),
+    });
+
+    // Start streaming in background, then enqueue the event
+    const responsePromise = testApp.request(
+      "/api/chat/events?sessionId=session-abc",
+      { method: "GET", headers: AUTH_HEADER },
+    );
+
+    // Give the stream handler a tick to set up
+    await new Promise((r) => setTimeout(r, 10));
+    enqueueEvent?.(rawEvent);
+
+    await responsePromise;
+
+    expect(mockTransform).toHaveBeenCalledWith(rawEvent);
+    expect(mockBroadcaster.broadcast).toHaveBeenCalledWith("session-abc", transformedEvent);
   });
 });

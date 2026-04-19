@@ -2,16 +2,20 @@
  * Chat API routes — OpenCode proxy layer
  *
  * POST /send    — Send user message to OpenCode session (fire-and-forget)
- * GET  /events  — SSE event stream skeleton (full impl in Phase 4.2)
+ * GET  /events  — SSE event stream (Phase 4.2: transformer + broadcaster + heartbeat)
  * GET  /history — Fetch message history from OpenCode session
  *
  * All routes require authentication (mounted after requireAuth in app.ts).
  */
 import { Hono } from "hono";
+import { streamSSE } from "hono/streaming";
 import { zValidator } from "@hono/zod-validator";
 import { z } from "zod";
 import { sessionManager } from "../opencode/manager.js";
 import { ok, fail } from "../utils/response.js";
+import { EventTransformer } from "../sse/transformer.js";
+import { broadcaster } from "../sse/broadcaster.js";
+import type { SSEConnection } from "../sse/types.js";
 
 /** Type for userId injected by requireAuth middleware */
 type Variables = { userId: string };
@@ -61,41 +65,79 @@ export function createChatRoutes() {
 
   /**
    * GET /api/chat/events
-   * SSE skeleton — streams OpenCode events filtered to the given sessionId.
-   * Full implementation (reconnection, lastEventId) will land in Phase 4.2.
+   * Full SSE implementation:
+   *   - Last-Event-Id header support for reconnection replay
+   *   - EventTransformer maps OpenCode events to 14 V2 SSE event types
+   *   - SSEBroadcaster buffers events and manages active connections
+   *   - 30-second heartbeat to keep the connection alive
    */
   chat.get("/events", zValidator("query", eventsQuerySchema), (c) => {
     const { sessionId } = c.req.valid("query");
-    const { stream, close } = sessionManager.subscribeEvents(sessionId);
+    const lastEventIdHeader = c.req.header("Last-Event-Id");
 
-    const encoder = new TextEncoder();
-    const sseStream = new ReadableStream<Uint8Array>({
-      async start(controller) {
-        const reader = stream.getReader();
+    return streamSSE(c, async (stream) => {
+      // ── 1. Replay missed events (Last-Event-Id reconnection) ──────────────
+      if (lastEventIdHeader) {
+        const afterId = parseInt(lastEventIdHeader, 10);
+        if (!isNaN(afterId)) {
+          const missed = broadcaster.replay(sessionId, afterId);
+          if (missed !== null) {
+            for (const event of missed) {
+              await stream.writeSSE({
+                id: String(event.id),
+                event: event.type,
+                data: JSON.stringify(event.data),
+              });
+            }
+          }
+        }
+      }
+
+      // ── 2. Register connection with broadcaster ────────────────────────────
+      const conn: SSEConnection = {
+        connId: `${sessionId}-${Date.now()}-${Math.random().toString(36).slice(2)}`,
+        write: async (event) => {
+          await stream.writeSSE({
+            id: String(event.id),
+            event: event.type,
+            data: JSON.stringify(event.data),
+          });
+        },
+      };
+      broadcaster.addConnection(sessionId, conn);
+
+      // ── 3. Subscribe to OpenCode events ───────────────────────────────────
+      const transformer = new EventTransformer();
+      const { stream: eventStream, close } = sessionManager.subscribeEvents(sessionId);
+
+      // ── 4. Heartbeat every 30 seconds ─────────────────────────────────────
+      const heartbeat = setInterval(() => {
+        stream.writeSSE({ event: "heartbeat", data: "" }).catch(() => {
+          // Stream may have closed — interval will be cleared in finally
+        });
+      }, 30_000);
+
+      // ── 5. Process event stream ────────────────────────────────────────────
+      try {
+        const reader = eventStream.getReader();
         try {
           while (true) {
             const { done, value } = await reader.read();
             if (done) break;
-            controller.enqueue(encoder.encode(`data: ${JSON.stringify(value)}\n\n`));
+            const sseEvent = transformer.transform(value);
+            if (sseEvent) {
+              await broadcaster.broadcast(sessionId, sseEvent);
+            }
           }
-          controller.close();
-        } catch {
-          // Stream aborted or connection dropped — close gracefully
-          controller.close();
         } finally {
           reader.releaseLock();
-          close();
         }
-      },
-      cancel() {
+      } finally {
+        clearInterval(heartbeat);
+        broadcaster.removeConnection(sessionId, conn);
         close();
-      },
+      }
     });
-
-    c.header("Content-Type", "text/event-stream");
-    c.header("Cache-Control", "no-cache");
-    c.header("Connection", "keep-alive");
-    return c.body(sseStream);
   });
 
   /**
