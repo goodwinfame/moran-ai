@@ -277,28 +277,54 @@ export const useSSEStore = create<SSEState>((set, get) => ({
 ```typescript
 // packages/web/src/lib/panel-event-router.ts
 
+// Tab ID 常量：brainstorm | settings | characters | outline | chapters | review | analysis | knowledge
+// 仅映射写入操作，读取操作不触发面板切换
+
 const TOOL_TAB_MAP: Record<string, string> = {
+  // 脑暴 Tab
   brainstorm_create: "brainstorm",
   brainstorm_update: "brainstorm",
-  world_setting_create: "settings",
-  world_setting_update: "settings",
-  world_subsystem_create: "settings",
-  world_subsystem_update: "settings",
+
+  // 设定 Tab（world 域统一，子类型由 type 参数区分）
+  world_create: "settings",
+  world_update: "settings",
+  world_delete: "settings",
+
+  // 角色 Tab
   character_create: "characters",
   character_update: "characters",
+  character_delete: "characters",
+  character_state_create: "characters",
   relationship_create: "characters",
+  relationship_update: "characters",
+
+  // 大纲 Tab（子类型由 type 参数区分）
   outline_create: "outline",
   outline_update: "outline",
-  chapter_write: "chapters",
-  chapter_revise: "chapters",
+
+  // 章节 Tab
+  chapter_create: "chapters",
+  chapter_update: "chapters",
   chapter_archive: "chapters",
-  review_round1: "reviews",
-  review_round2: "reviews",
-  review_round3: "reviews",
-  review_round4: "reviews",
-  analysis_run: "analysis",
-  knowledge_write: "knowledge",
-  lesson_learn: "knowledge",
+  style_create: "chapters",
+  style_update: "chapters",
+  summary_create: "chapters",
+
+  // 审校 Tab（单工具，轮次由 round 参数区分）
+  review_execute: "review",
+
+  // 分析 Tab
+  analysis_execute: "analysis",
+
+  // 知识库 Tab
+  knowledge_create: "knowledge",
+  knowledge_update: "knowledge",
+  knowledge_delete: "knowledge",
+  lesson_create: "knowledge",
+  lesson_update: "knowledge",
+  thread_create: "knowledge",
+  thread_update: "knowledge",
+  timeline_create: "knowledge",
 };
 
 export function routeToolResultToTab(toolName: string): string | null {

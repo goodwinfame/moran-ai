@@ -35,14 +35,14 @@ opencode-config/
 │   └── dianjing.yaml       ← 点睛（标题/简介）
 ├── styles/
 │   ├── yunmo.yaml           ← 云墨（均衡万用、自然流畅）
-│   ├── jianxin.yaml         ← 剑心·寒刃白描（冷峻简约、短句、白描）
+│   ├── jianxin.yaml         ← 剑心（冷峻简约、短句、白描）
 │   ├── xinghe.yaml          ← 星河（精确、技术感、理性叙述）
-│   ├── sushou.yaml          ← 素手·暖阳絮语（温暖细腻、长句、情感细写）
+│   ├── sushou.yaml          ← 素手（温暖细腻、长句、情感细写）
 │   ├── yanhuo.yaml          ← 烟火（市井烟火气、口语化、快节奏）
-│   ├── anqi.yaml            ← 暗棋·迷雾潜行（层层递进、信息控制、悬念留白）
-│   ├── qingshi.yaml         ← 青史·苍穹长歌（典雅庄重、文白混用）
-│   ├── yelan.yaml           ← 夜阑·暗夜低吟（压抑、感官描写密集）
-│   └── jiexing.yaml         ← 谐星·嬉笑怒骂（轻快、节奏明快、反差幽默）
+│   ├── anqi.yaml            ← 暗棋（层层递进、信息控制、悬念留白）
+│   ├── qingshi.yaml         ← 青史（典雅庄重、文白混用）
+│   ├── yelan.yaml           ← 夜阑（压抑、感官描写密集）
+│   └── jiexing.yaml         ← 谐星（轻快、节奏明快、反差幽默）
 └── mcp.json                 ← MCP Server 连接配置
 ```
 
@@ -266,7 +266,7 @@ system_prompt: |
 
   ## 文风系统
   当前风格配置由 style_read 返回，包含：
-  - 风格名（如"执笔·寒刃白描"或"执笔·云墨"）
+  - 风格名（如"执笔·剑心"或"执笔·云墨"）
   - 描述文本（语言特征、节奏、情感倾向）
   - 示例段落
   你必须严格按照风格配置写作，保持章节间一致性。
@@ -436,7 +436,6 @@ tools:
 name: 云墨
 id: yunmo
 display_name: 执笔·云墨
-# display_alias: —（无别名，显示名直接用子名）
 recommended_model: claude-sonnet-4-20250514
 description: |
   平衡叙述风格，兼顾描写深度和情节推进节奏。
@@ -450,11 +449,10 @@ example_paragraph: |
 ```
 
 ```yaml
-# styles/jianxin.yaml — 剑心·寒刃白描
+# styles/jianxin.yaml — 剑心
 name: 剑心
 id: jianxin
-display_name: 执笔·寒刃白描
-display_alias: 寒刃白描
+display_name: 执笔·剑心
 recommended_model: kimi-k2
 description: |
   冷峻简约，四字句与长短句交替。

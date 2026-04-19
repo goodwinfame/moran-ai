@@ -413,7 +413,7 @@ export function registerCharacterTools(server: McpServer) {
     }
   );
 
-  // ... character_update, character_state_update, etc.
+  // ... character_update, character_state_create, etc.
 }
 ```
 
@@ -830,14 +830,14 @@ tools:
 | 子写手 | 推荐模型 |
 |--------|---------|
 | 云墨 | Claude Sonnet |
-| 剑心（寒刃白描） | Kimi K2 |
+| 剑心 | Kimi K2 |
 | 星河 | GPT-4o |
-| 素手（暖阳絮语） | Claude Opus |
+| 素手 | Claude Opus |
 | 烟火 | GPT-4o |
-| 暗棋（迷雾潜行） | Claude Opus |
-| 青史（苍穹长歌） | Claude Opus |
-| 夜阑（暗夜低吟） | Gemma4 |
-| 谐星（嬉笑怒骂） | GPT-4o |
+| 暗棋 | Claude Opus |
+| 青史 | Claude Opus |
+| 夜阑 | Gemma4 |
+| 谐星 | GPT-4o |
 
 **切换机制**：
 
@@ -848,7 +848,7 @@ tools:
 task({
   agent: "zhibi",
   model: "anthropic/claude-opus-4-20250514",  // 素手风格 → Claude Opus
-  prompt: "使用【素手·暖阳絮语】风格写作第 3 章。\n文风要求：温暖细腻、长句、情感细写、氛围渲染。\n[章节详案和写作上下文...]"
+  prompt: "使用【执笔·素手】风格写作第 3 章。\n文风要求：温暖细腻、长句、情感细写、氛围渲染。\n[章节详案和写作上下文...]"
 })
 ```
 
@@ -1054,7 +1054,22 @@ export async function startOpenCodeEventListener(
 
 ### 6.3 工具-面板映射（Tool → Tab）
 
-EventTransformer 维护工具名到面板 Tab 的映射表：
+EventTransformer 维护工具名到面板 Tab 的映射表。仅映射**写入操作**（create / update / delete / archive / execute），读取操作不触发面板切换。
+
+**Tab ID 常量**（8 个，对应面板 8 个 Tab）：
+
+| Tab (中文) | Tab ID | 映射的域 |
+|---|---|---|
+| 脑暴 | `brainstorm` | brainstorm |
+| 设定 | `settings` | world |
+| 角色 | `characters` | character, character_state, relationship |
+| 大纲 | `outline` | outline |
+| 章节 | `chapters` | chapter, style, summary |
+| 审校 | `review` | review |
+| 分析 | `analysis` | analysis |
+| 知识库 | `knowledge` | knowledge, lesson, thread, timeline |
+
+**未映射的工具**：`project_read/update`（全局上下文）、`gate_check`（内部门禁）、`world_check`（一致性校验）、`context_assemble`（Agent 内部数据组装）、所有 `*_read` 操作。
 
 ```typescript
 // packages/server/src/sse/transformer.ts
@@ -1064,45 +1079,46 @@ const TOOL_TAB_MAP: Record<string, string> = {
   brainstorm_create: "brainstorm",
   brainstorm_update: "brainstorm",
 
-  // 设定 Tab
-  world_setting_create: "worldbuilding",
-  world_setting_update: "worldbuilding",
-  world_subsystem_create: "worldbuilding",
-  world_subsystem_update: "worldbuilding",
-  location_create: "worldbuilding",
-  location_update: "worldbuilding",
-  glossary_create: "worldbuilding",
-  glossary_update: "worldbuilding",
+  // 设定 Tab（world 域统一，子类型由 type 参数区分）
+  world_create: "settings",
+  world_update: "settings",
+  world_delete: "settings",
 
   // 角色 Tab
-  character_create: "character",
-  character_update: "character",
-  character_state_update: "character",
-  relationship_create: "character",
-  relationship_update: "character",
+  character_create: "characters",
+  character_update: "characters",
+  character_delete: "characters",
+  character_state_create: "characters",
+  relationship_create: "characters",
+  relationship_update: "characters",
 
-  // 大纲 Tab
+  // 大纲 Tab（子类型由 type 参数区分）
   outline_create: "outline",
   outline_update: "outline",
-  arc_detail_create: "outline",
 
   // 章节 Tab
-  chapter_write: "chapter",
-  chapter_revise: "chapter",
-  chapter_archive: "chapter",
+  chapter_create: "chapters",
+  chapter_update: "chapters",
+  chapter_archive: "chapters",
+  style_create: "chapters",
+  style_update: "chapters",
+  summary_create: "chapters",
 
-  // 审校 Tab
-  review_round1: "review",
-  review_round2: "review",
-  review_round3: "review",
-  review_round4: "review",
+  // 审校 Tab（单工具，轮次由 round 参数区分）
+  review_execute: "review",
 
   // 分析 Tab
-  analysis_run: "analysis",
+  analysis_execute: "analysis",
 
   // 知识库 Tab
-  knowledge_write: "knowledge",
-  lesson_learn: "knowledge",
+  knowledge_create: "knowledge",
+  knowledge_update: "knowledge",
+  knowledge_delete: "knowledge",
+  lesson_create: "knowledge",
+  lesson_update: "knowledge",
+  thread_create: "knowledge",
+  thread_update: "knowledge",
+  timeline_create: "knowledge",
 };
 ```
 
