@@ -15,16 +15,36 @@ SSE 实时通信模块。负责将 OpenCode 事件流和面板数据变更实时
 
 通过 `/api/chat/events?sessionId=...` 订阅，返回 `Content-Type: text/event-stream`。
 
+**通用事件**（所有场景）：
+
 | 事件类型 | 来源 | 前端处理 |
 |----------|------|----------|
 | `text` | 墨衡流式文本输出 | 聊天窗口逐字追加 |
 | `tool_call` | Agent 调用 MCP 工具 | 聊天窗口显示进度 |
-| `tool_result` | MCP 工具返回结果 | 触发面板自动切 Tab + 数据刷新 |
+| `tool_result` | MCP 工具返回结果 | 触发面板自动切 Tab + 数据刷新（映射见 §2.2） |
 | `subtask_start` | 子 Agent 开始工作 | Agent 状态条新增一行 |
 | `subtask_progress` | 子 Agent 工作进展 | Agent 状态条更新描述文案 |
 | `subtask_end` | 子 Agent 完成 | Agent 状态条变灰 + 3秒淡出 |
 | `error` | 错误发生 | 聊天窗口显示错误提示 |
 | `interaction_mode` | 墨衡需要用户决策 | 输入框替换为 Question Panel |
+
+**章节写作专用事件**（执笔写作时触发）：
+
+| 事件类型 | 频率 | 前端处理 |
+|----------|------|----------|
+| `chapter.start` | 每章一次 | 章节 Tab 加 🔴，进入写作模式 |
+| `chapter.token` | ~500ms | 追加文字 + 更新字数 |
+| `chapter.complete` | 每章一次 | 移除 🔴，切回阅读模式 |
+
+**脑暴专用事件**（灵犀脑暴时触发）：
+
+| 事件类型 | 前端处理 |
+|----------|----------|
+| `brainstorm.diverge` | 追加到发散区域 |
+| `brainstorm.converge` | 更新聚焦区域 |
+| `brainstorm.crystallize` | 渲染结晶卡片 + 自动切 Tab |
+
+> 共计 **14 种事件类型**：8 通用 + 3 章节专用 + 3 脑暴专用。
 
 ### 2.2 Panel SSE 事件映射
 
@@ -40,22 +60,6 @@ SSE 实时通信模块。负责将 OpenCode 事件流和面板数据变更实时
 | `review_execute` | 审校 | 渲染评分条+详情 |
 | `analysis_execute` | 分析 | 渲染雷达图+趋势图 |
 | `knowledge_*`, `lesson_*`, `thread_*`, `timeline_*` | 知识库 | 追加/更新条目 |
-
-#### 章节写作专用事件
-
-| 事件 | 频率 | 面板行为 |
-|------|------|----------|
-| `chapter.start` | 每章一次 | Tab 加 🔴，进入写作模式 |
-| `chapter.token` | ~500ms | 追加文字 + 更新字数 |
-| `chapter.complete` | 每章一次 | 移除 🔴，切回阅读模式 |
-
-#### 脑暴专用事件
-
-| 事件 | 面板行为 |
-|------|----------|
-| `brainstorm.diverge` | 追加到发散区域 |
-| `brainstorm.converge` | 更新聚焦区域 |
-| `brainstorm.crystallize` | 渲染结晶卡片 + 自动切 Tab |
 
 ### 2.3 Agent 状态条数据模型
 

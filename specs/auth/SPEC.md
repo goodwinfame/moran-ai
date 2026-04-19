@@ -51,6 +51,17 @@ V2 不实现 OAuth，不实现多因素认证。
 - 从 Cookie 提取 `session_id` → 查询 DB 校验 → 注入 `userId` 到请求上下文
 - 无效/过期 Session → 返回 401
 
+**路由认证需求表**：
+
+| 路由前缀 | 需要认证 | 说明 |
+|----------|---------|------|
+| `/api/auth/*` | 否 | 注册/登录/登出（公开） |
+| `/api/chat/*` | 是 | 需要有效 Session |
+| `/api/projects/*` | 是 | 需要有效 Session + 项目归属校验 |
+| `/api/user/*` | 是 | 需要有效 Session |
+| `/login`, `/register` | 否 | 公开页面（Next.js 路由） |
+| `/`, `/projects/:id` | 是 | Next.js Middleware Cookie 检查 |
+
 ### 2.7 项目权限
 
 - `projects` 表通过 `userId` 外键关联用户

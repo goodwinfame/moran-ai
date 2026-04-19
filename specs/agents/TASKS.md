@@ -57,15 +57,52 @@
 - **输出**：`packages/mcp-server/src/gates/rules.ts` 完善全部门禁规则
 - **规则**：
   - 覆盖 SPEC 2.6 门禁依赖链的所有 HARD/SOFT 规则
-  - 最小规则集：
-    - `world_create` → HARD: 创意简报已存在
-    - `character_create` → HARD: 世界设定已存在; SOFT: 力量体系已定义
-    - `outline_create` → HARD: 角色 ≥ 2 个主要 + 关系网络
-    - `chapter_create` → HARD: 大纲+Brief+角色状态+文风; SOFT: 世界自洽
-    - `chapter_archive` → HARD: 审校通过
-    - `review_execute(round=2)` → HARD: Round 1 已完成
-    - `review_execute(round=3)` → HARD: Round 2 已完成
-    - `review_execute(round=4)` → HARD: Round 3 已完成
+  - 所有 `_read` 工具免门禁（见 mcp-tools/SPEC §6.3）
+  - 完整门禁规则集：
+
+  **创作流程门禁（依赖链核心）**：
+
+  | 工具 | 级别 | 条件 |
+  |------|------|------|
+  | `brainstorm_create` | — | 无门禁（创作流程起点） |
+  | `world_create` | HARD | 创意简报（brainstorm）已存在 |
+  | `character_create` | HARD | 世界设定已存在 |
+  | `character_create` | SOFT | 力量体系已定义 |
+  | `relationship_create` | HARD | 双方角色均已存在 |
+  | `outline_create` | HARD | 角色 ≥ 2 个主要 + 关系网络已建立 |
+  | `chapter_create` | HARD | 大纲已存在 + 章节 Brief 已定义 + 角色状态快照 + 文风已配置 |
+  | `chapter_create` | SOFT | 世界设定自洽检查 |
+  | `review_execute(round=1)` | HARD | 章节已存在且未归档 |
+  | `review_execute(round=2)` | HARD | Round 1 已完成 |
+  | `review_execute(round=3)` | HARD | Round 2 已完成 |
+  | `review_execute(round=4)` | HARD | Round 3 已完成 |
+  | `chapter_archive` | HARD | 审校通过（最终轮 ≥ 阈值） |
+  | `context_assemble` | HARD | 大纲已存在 + Brief 已定义 + 文风已确定 |
+
+  **归档流程门禁**：
+
+  | 工具 | 级别 | 条件 |
+  |------|------|------|
+  | `summary_create` | HARD | 章节已归档 |
+  | `thread_create` | HARD | 章节已归档 |
+  | `timeline_create` | HARD | 章节已归档 |
+  | `character_state_create` | HARD | 角色已存在 + 章节已归档 |
+
+  **数据完整性门禁**：
+
+  | 工具 | 级别 | 条件 |
+  |------|------|------|
+  | `chapter_update` | HARD | 章节已存在且未归档 |
+  | `chapter_patch` | HARD | 章节已存在且未归档 |
+  | `world_delete` | SOFT | 无角色依赖此设定 |
+  | `character_delete` | SOFT | 无活跃线索依赖此角色 |
+  | `analysis_execute` | HARD | 章节已存在 |
+
+  **无门禁工具**（除上述规则外的写入工具均无门禁）：
+  `project_update`、`brainstorm_update/patch`、`world_update/check/patch`、`character_update/patch`、
+  `relationship_update`、`style_create/update`、`outline_update/patch`、
+  `knowledge_create/update/delete/patch`、`lesson_create/update`
+
 - **验收**：规则数量覆盖全部门禁链，单元测试覆盖 HARD 拒绝/SOFT 警告/正常通过
 
 ### T6: 实现审校工具（1 个）

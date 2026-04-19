@@ -9,8 +9,8 @@
 - **输出**：
   - `routes/` 目录结构
   - `utils/response.ts`（ok / fail / paginated 工具）
-  - `middleware/user-id.ts`（userId 提取中间件）
-  - `app.ts` 更新：挂载 userIdMiddleware
+  - （认证中间件由 auth 模块 T5 提供，见 `specs/auth/TASKS.md`）
+  - `app.ts` 更新：挂载 auth 模块的 `requireAuth` 中间件
 - **验收**：`pnpm typecheck` 通过
 
 ### T2: 安装 Zod 校验依赖

@@ -163,9 +163,51 @@ interface InlineReply {
 }
 ```
 
-前端根据 action 执行：
-- `navigate` → `router.push(`/projects/${projectId}`)`
-- `create_project` → 创建项目后跳转
+**前端响应解析逻辑**：
+
+```typescript
+async function handleInlineReply(reply: InlineReply) {
+  // 1. 始终显示文本回复
+  addInlineMessage({ role: "assistant", content: reply.text });
+
+  // 2. 如果携带 action，执行对应操作
+  if (!reply.action) return;
+
+  switch (reply.action.type) {
+    case "navigate":
+      router.push(`/projects/${reply.action.projectId}`);
+      break;
+    case "create_project":
+      // 创建项目后跳转
+      const newId = await projectStore.createProject(
+        reply.action.title ?? "未命名项目"
+      );
+      router.push(`/projects/${newId}`);
+      break;
+  }
+}
+```
+
+**错误处理**：
+
+| 错误场景 | 前端行为 |
+|----------|----------|
+| 网络请求失败 | 显示 "网络异常，请重试" 内联消息，输入框保持可用 |
+| SSE 连接断开 | 内联消息区显示断线提示，自动重连后恢复 |
+| `navigate` 目标项目不存在 | 跳转后由项目页处理 404 |
+| `create_project` 失败 | 显示 "创建失败：{error.message}" 内联消息 |
+| 墨衡回复超时（>10s） | 显示 "思考中…" 加载动画，30s 后提示超时 |
+
+**加载状态**：
+
+```typescript
+// InlineChatInput 发送消息后的状态流转
+idle → sending（禁用输入框 + 显示加载动画）→ streaming（逐字显示回复）→ idle
+```
+
+- 发送消息后输入框禁用，显示 "墨衡思考中…" 占位
+- 收到首个 token 后切换为流式显示
+- 回复完成或出错后恢复输入框
 
 ### 2.8 阶段标签映射
 

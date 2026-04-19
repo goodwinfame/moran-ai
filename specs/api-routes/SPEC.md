@@ -13,6 +13,8 @@ Hono 后端的 RESTful API 路由层。分为三大类：Chat API（对话通道
 
 ## 2. 功能需求
 
+> **Auth 端点**：认证相关路由（`/api/auth/register`、`/api/auth/login`、`/api/auth/logout`）定义在 auth 模块中，见 `specs/auth/SPEC.md` §2.8。本模块不重复定义。
+
 ### 2.1 Chat API（对话通道）
 
 | 方法 | 路径 | 功能 | 说明 |

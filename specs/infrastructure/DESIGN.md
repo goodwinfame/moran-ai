@@ -75,10 +75,23 @@ export default defineConfig({
 
 确保包含 V2 所有必需变量：
 ```
+# === 数据库 ===
 DATABASE_URL=postgresql://moran:moran@localhost:5432/moran
-OPENCODE_BASE_URL=http://127.0.0.1:4096
+POSTGRES_PASSWORD=moran
+
+# === 服务端口 ===
 PORT=3200
+WEB_PORT=3000
+
+# === OpenCode ===
+OPENCODE_BASE_URL=http://127.0.0.1:4096
+
+# === Next.js → Hono 代理 ===
 API_UPSTREAM=http://localhost:3200
+
+# === LLM API Keys（至少配一个） ===
+ANTHROPIC_API_KEY=sk-ant-...
+OPENAI_API_KEY=sk-...
 ```
 
 ## 4. 不需要改动的部分
