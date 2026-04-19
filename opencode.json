@@ -1,0 +1,11 @@
+{
+  "mcpServers": {
+    "moran-mcp": {
+      "command": "node",
+      "args": ["./packages/mcp-server/dist/index.js"],
+      "env": {
+        "DATABASE_URL": "${DATABASE_URL}"
+      }
+    }
+  }
+}
