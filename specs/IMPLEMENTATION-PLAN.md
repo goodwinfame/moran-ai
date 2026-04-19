@@ -395,4 +395,4 @@ $env:GIT_COMMITTER_EMAIL='swim1986@126.com'
 | 4.2 | SSE 实时推送（14 event types, server+frontend, 127 tests, 751 total） | ✅ | `58c2637` |
 | 5.1 | 项目列表页（7 components, store, shared, shadcn, 90 tests, 841 total） | ✅ | `2842dae` |
 | 5.2 | 聊天窗口（18 components, chat-store, 123 tests, 964 total） | ✅ | `e46c32a` |
-| 5.3 | 信息面板（8 Tab） | ⏳ | — |
+| 5.3 | 信息面板（8 tabs, panel-store, event routing, 22 tests, 1061 total） | ✅ | `aece634` |
