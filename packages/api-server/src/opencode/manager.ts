@@ -1,4 +1,4 @@
-﻿/**
+/**
  * OpenCode SessionManager
  *
  * 职责：
@@ -13,7 +13,7 @@
  */
 
 import { createOpencodeClient } from "@opencode-ai/sdk";
-import type { OpencodeClient } from "@opencode-ai/sdk";
+import type { OpencodeClient, Message, Part } from "@opencode-ai/sdk";
 import { createLogger } from "@moran/core/logger";
 
 const log = createLogger("opencode-manager");
@@ -31,6 +31,26 @@ export interface SessionManagerOptions {
   baseUrl?: string;
   /** Session 不活跃超时时长（ms），默认 30 分钟 */
   ttlMs?: number;
+}
+
+export interface MessageWithParts {
+  info: Message;
+  parts: Part[];
+}
+
+export interface SendMessageOptions {
+  /** Target agent name (e.g., "lingxi", "jiangxin") */
+  agent?: string;
+}
+
+export interface SendMessageResult {
+  messageId: string;
+}
+
+export interface OpenCodeEvent {
+  type: string;
+  sessionId?: string;
+  data: unknown;
 }
 
 export class OpenCodeSessionManager {
@@ -158,6 +178,131 @@ export class OpenCodeSessionManager {
   /** 当前活跃 session 数（用于健康检查/监控） */
   get activeCount(): number {
     return this.sessions.size;
+  }
+
+  /**
+   * 服务重启时恢复 session 映射
+   * 通过 OpenCode SDK session.list() 重建内存 Map
+   */
+  async restore(): Promise<number> {
+    const client = this.createClient();
+    const res = await client.session.list();
+    const sessions = res.data ?? [];
+    let count = 0;
+    for (const s of sessions) {
+      const match = s.title.match(/^moran-(.+?)-(.+)$/);
+      if (!match) continue;
+      const userId = match[1];
+      const projectId = match[2];
+      if (!userId || !projectId) continue;
+      const k = this.key(userId, projectId);
+      if (!this.sessions.has(k)) {
+        this.sessions.set(k, {
+          sessionId: s.id,
+          createdAt: s.time.created,
+          lastActiveAt: s.time.updated,
+        });
+        count++;
+      }
+    }
+    log.info({ restored: count }, "Sessions restored from OpenCode");
+    return count;
+  }
+
+  /**
+   * 获取指定 session 的消息历史
+   */
+  async getMessages(
+    sessionId: string,
+    options?: { limit?: number },
+  ): Promise<MessageWithParts[]> {
+    const client = this.createClient();
+    const res = await client.session.messages({
+      path: { id: sessionId },
+      query: { limit: options?.limit },
+    });
+    return (res.data ?? []) as MessageWithParts[];
+  }
+
+  /**
+   * 向 session 发送消息（fire-and-forget）
+   */
+  async sendMessage(
+    sessionId: string,
+    content: string,
+    options?: SendMessageOptions,
+  ): Promise<SendMessageResult> {
+    const client = this.createClient();
+    const res = await client.session.promptAsync({
+      path: { id: sessionId },
+      body: {
+        parts: [{ type: "text" as const, text: content }],
+        agent: options?.agent,
+      },
+    });
+    const messageId =
+      (res.data as unknown as { info?: { id?: string } })?.info?.id ?? "";
+    return { messageId };
+  }
+
+  /**
+   * 订阅 session 事件流
+   * 返回过滤后的 ReadableStream，仅包含该 session 的事件
+   */
+  subscribeEvents(sessionId: string): {
+    stream: ReadableStream<OpenCodeEvent>;
+    close: () => void;
+  } {
+    const client = this.createClient();
+    const abortController = new AbortController();
+
+    const stream = new ReadableStream<OpenCodeEvent>({
+      async start(controller) {
+        try {
+          const eventStream = await client.global.event();
+          const reader = eventStream as unknown as AsyncIterable<{ data: string }>;
+          for await (const event of reader) {
+            if (abortController.signal.aborted) break;
+            try {
+              const parsed = JSON.parse(event.data) as {
+                payload?: {
+                  type?: string;
+                  properties?: Record<string, unknown>;
+                };
+              };
+              const payload = parsed.payload;
+              if (!payload) continue;
+              const props = payload.properties ?? {};
+              const eventSessionId =
+                (props["sessionID"] as string | undefined) ??
+                (props["info"] as { sessionID?: string } | undefined)
+                  ?.sessionID ??
+                (props["part"] as { sessionID?: string } | undefined)
+                  ?.sessionID;
+              if (eventSessionId === sessionId) {
+                controller.enqueue({
+                  type: payload.type ?? "",
+                  sessionId: eventSessionId,
+                  data: props,
+                });
+              }
+            } catch {
+              // Skip malformed events
+            }
+          }
+          controller.close();
+        } catch (err) {
+          if (!abortController.signal.aborted) {
+            controller.error(err);
+          }
+        }
+      },
+    });
+
+    return {
+      stream,
+      close: () => abortController.abort(),
+    };
   }
 }
 
