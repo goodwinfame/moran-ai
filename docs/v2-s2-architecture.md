@@ -53,7 +53,7 @@ graph TD
   subgraph OpenCode["OpenCode (:4096)"]
     Moheng["墨衡 Agent"]
     SubTask["SubtaskPart"]
-    SubAgents["子 Agents<br/>(灵犀/匠心/执笔/明镜…)"]
+    SubAgents["子 Agents<br/>(灵犀/匠心/执笔/明镜/载史/博闻/析典/书虫/点睛)"]
     MCP["MCP Tools"]
     Moheng --> SubTask --> SubAgents --> MCP
   end

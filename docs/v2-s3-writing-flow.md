@@ -187,16 +187,17 @@ gate_check("character_design"):
 ```
 匠心（角色设计）:
   1. 读取世界设定和创意简报
-  2. 设计主要角色（四维心理模型）:
-     - WANT: 表层目标（读者可见）
-     - NEED: 深层需求（角色不自知）
-     - LIE:  自欺信念（需要打破）
-     - GHOST: 创伤根源（驱动力来源）
+  2. 设计主要角色（五维心理模型）:
+     - GHOST: 创伤根源（过去事件）
+     - WOUND: 心理伤痕（持续性创伤痕迹）
+     - LIE:  核心谎言（自欺信念）
+     - WANT: 表层欲望（读者可见）
+     - NEED: 真实需求（角色不自知）
   3. 设计角色关系网络
-  4. 设计角色成长弧线（LIE 对峙时间线）
+  4. 设计角色成长弧线（GHOST/WOUND/LIE 对峙时间线）
   
   → MCP: character_create({ projectId, name, role, profile: {
-      want, need, lie, ghost, personality, background, goals
+      want, need, lie, ghost, wound, personality, background, goals
     }})
   → MCP: relationship_create({ projectId, char1Id, char2Id, type, description })
 ```
@@ -208,7 +209,7 @@ gate_check("character_design"):
 | 层级 | 内容 | 面板展示 |
 |------|------|----------|
 | 公开层 | 姓名、外貌、身份、表层目标 | 默认展示 |
-| 隐藏层 | NEED、LIE、GHOST、成长弧线 | 点击展开 |
+| 隐藏层 | GHOST、WOUND、LIE、NEED、成长弧线 | 点击展开 |
 | 行为层 | 语言风格、行为模式、应激反应 | 详情页 |
 
 ### 4.2 文风确定

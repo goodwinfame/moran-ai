@@ -21,7 +21,7 @@
     -   **理论支撑**：热奈特（Genette）叙事话语（叙述时间、视角、层级）、托多罗夫（Todorov）平衡理论、坎贝尔（Campbell）英雄之旅、普罗普（Propp）叙事功能。
     -   **分析重点**：叙述时间（停顿、跳越、概括）的比例、叙述视角变换的平滑度、结构平衡性（Setup-Conflict-Resolution）的节奏把握。
 2.  **角色设计** (Character Design)：
-    -   **理论支撑**：九型人格 (Enneagram)、普罗普 (Propp) 角色职能、角色核心四要素 (WANT/NEED/LIE/GHOST)。
+    -   **理论支撑**：九型人格 (Enneagram)、普罗普 (Propp) 角色职能、角色五维模型 (GHOST/WOUND/LIE/WANT/NEED)。
     -   **分析重点**：角色弧光完整度（人物在剧情压力下的转变）、动机逻辑链（是否有降智行为）、角色声音（Voice）的一致性与差异化。
 3.  **世界观构建** (Worldbuilding)：
     -   **理论支撑**：布兰登·桑德森 (Sanderson) 三定律、力量体系拓扑学、莫尔 (More) 乌托邦结构。
