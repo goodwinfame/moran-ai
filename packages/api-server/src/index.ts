@@ -6,6 +6,7 @@
 import { serve } from "@hono/node-server";
 import { createApp } from "./app.js";
 import { createLogger } from "@moran/core/logger";
+import { startLogCleanup } from "./jobs/log-cleanup.js";
 
 const log = createLogger("server");
 
@@ -15,6 +16,7 @@ const { app } = createApp();
 
 serve({ fetch: app.fetch, port }, (info) => {
   log.info({ port: info.port }, "墨染 API 服务已启动 (V2)");
+  startLogCleanup();
 });
 
 // 进程退出时清理

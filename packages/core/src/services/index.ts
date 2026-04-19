@@ -23,3 +23,5 @@ export * as knowledgeService from "./knowledge.service.js";
 export * as lessonService from "./lesson.service.js";
 export * as gateService from "./gate.service.js";
 export * as costService from "./cost.service.js";
+export * as logService from "./log.service.js";
+export { withLogging } from "./with-logging.js";
