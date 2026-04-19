@@ -111,11 +111,14 @@ pnpm --filter @moran/api-server test  # API 路由测试（createApp + app.reque
 
 ---
 
-## Phase 2：Service 层
+## Phase 2：Service 层 ✅ 已完成
 
 **目标**：所有业务逻辑抽象为 Service，被 MCP 工具和 API 路由共用
 
 **Spec 文件**：Service 层分散在各模块 DESIGN.md 中，核心设计在 `docs/v2-s11-technical-architecture.md`
+
+**完成状态**：14 个 CRUD Service 已实现 + 226 个测试全部通过。Commit `846719d`。
+剩余 5 个复杂 Service（ReviewService, AnalysisService, ContextService, CostService, LogService）因依赖外部系统或复杂聚合逻辑，延后到 Phase 3/4 按需实现。
 
 ### Service 清单
 
@@ -381,9 +384,9 @@ $env:GIT_COMMITTER_EMAIL='swim1986@126.com'
 | 0 | 题材技法管理设计 | ✅ | `a14c9d2` |
 | 0 | 文档一致性修复 | ✅ | `eb7a191` |
 | 0 | V1 代码清理 | ✅ | `2bbfc52` |
-| 1.1 | database schema migration | ⏳ | — |
-| 1.2 | infrastructure Docker + 连接 | ⏳ | — |
-| 1.3 | auth 认证系统 | ⏳ | — |
+| 1.1 | database schema migration | ✅ | `dbf9da2` |
+| 1.2 | infrastructure Docker + 连接 | ✅ | `3c28b63` |
+| 1.3 | auth 认证系统 | ✅ | `8910f44` |
 | 2 | Service 层（~19 个 Service） | ⏳ | — |
 | 3.1 | MCP Server + 54 工具 | ⏳ | — |
 | 3.2 | Agent 配置 + 种子数据 | ⏳ | — |
