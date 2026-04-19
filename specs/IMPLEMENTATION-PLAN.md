@@ -387,8 +387,8 @@ $env:GIT_COMMITTER_EMAIL='swim1986@126.com'
 | 1.1 | database schema migration | ✅ | `dbf9da2` |
 | 1.2 | infrastructure Docker + 连接 | ✅ | `3c28b63` |
 | 1.3 | auth 认证系统 | ✅ | `8910f44` |
-| 2 | Service 层（~19 个 Service） | ⏳ | — |
-| 3.1 | MCP Server + 54 工具 | ⏳ | — |
+| 2 | Service 层（14 CRUD Service, 226 tests） | ✅ | `846719d` |
+| 3.1 | MCP Server + 54 工具 + 303 tests | ✅ | `40f30cc` |
 | 3.2 | Agent 配置 + 种子数据 | ⏳ | — |
 | 3.3 | OpenCode 集成配置 | ⏳ | — |
 | 4.1 | API 路由 | ⏳ | — |
