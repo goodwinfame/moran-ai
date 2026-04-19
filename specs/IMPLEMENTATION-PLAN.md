@@ -322,6 +322,86 @@ pnpm --filter @moran/web test:e2e
 
 ---
 
+## Phase 6：Wiring & Auth Foundation（P0 阻塞）
+
+**目标**：修复所有数据流断裂 + 补齐认证 UI，使系统端到端跑通
+
+**Spec 文件**：`specs/wiring-auth/SPEC.md`
+
+| 任务 | 说明 | 严重程度 |
+|------|------|---------|
+| 6.1 SSE 前端自动连接 | WorkspacePage mount 时调用 `useSSEStore.connect()` | 🔴 P0 |
+| 6.2 面板数据初始加载 | InfoPanel 打开 Tab 时从 API 拉取数据，不仅读 IndexedDB | 🔴 P0 |
+| 6.3 Next.js Auth 中间件 | `middleware.ts` 校验 cookie，未认证重定向 `/login` | 🟡 P1 |
+| 6.4 Login 页面 | `/login` 路由 + 表单 + 调用 `POST /api/auth/login` | 🟡 P1 |
+| 6.5 Register 页面 | `/register` 路由 + 表单 + 调用 `POST /api/auth/register` | 🟡 P1 |
+
+---
+
+## Phase 7：Cost Tracking System（S11 §10）
+
+**目标**：从 OpenCode SSE 事件中提取 token 用量，持久化到 DB，前端展示
+
+**Spec 文件**：`specs/cost-tracking/SPEC.md`
+
+| 任务 | 说明 |
+|------|------|
+| 7.1 `usage_records` DB 表 | model, prompt_tokens, completion_tokens, cost_usd, agent_id, session_id |
+| 7.2 MODEL_PRICING 配置 | 各模型单价表（可运行时更新） |
+| 7.3 CostService | 记录用量 + 按项目/时间/Agent 聚合查询 |
+| 7.4 Usage API 端点 | `GET /api/projects/:id/usage/summary` + `GET /api/projects/:id/usage/details` |
+| 7.5 EventTransformer token 提取 | 从 `message.completed` 事件中提取 usage 数据写入 DB |
+| 7.6 NavBar Token 展示 | 将硬编码 "0 Token" 改为真实数据 |
+| 7.7 Token 消耗弹窗 | 点击 Token 展示详细报表 modal |
+
+---
+
+## Phase 8：Logging System（S11 §11）
+
+**目标**：结构化 Agent 日志持久化 + 查询 API + 自动清理
+
+**Spec 文件**：`specs/logging/SPEC.md`
+
+| 任务 | 说明 |
+|------|------|
+| 8.1 `agent_logs` DB 表 | level, agent_id, action, message, metadata, duration_ms |
+| 8.2 LogService | 写入 DB + 按项目/Agent/级别查询 + 聚合统计 |
+| 8.3 `withLogging` 装饰器 | Service 层方法自动记录入参/出参/耗时 |
+| 8.4 Log 查询 API | `GET /api/projects/:id/logs` + 过滤/分页 |
+| 8.5 Log 清理 Job | 90 天自动清理过期日志 |
+
+---
+
+## Phase 9：Settings Panel（S4 §11.1）
+
+**目标**：Settings Drawer 从硬编码改为真实数据绑定
+
+**Spec 文件**：`specs/settings/SPEC.md`
+
+| 任务 | 说明 |
+|------|------|
+| 9.1 Settings Zustand Store | 读取/缓存/提交项目设置 |
+| 9.2 Settings API 端点 | `PATCH /api/projects/:id/settings`（写风格、模型、预算、写作参数） |
+| 9.3 ProjectSettingsDrawer 数据绑定 | 6 个区域全部接入真实 store + API |
+
+---
+
+## Phase 10：UI Integration & Export
+
+**目标**：补齐 UI 组件 wiring + Export 后端
+
+**Spec 文件**：`specs/ui-integration/SPEC.md`
+
+| 任务 | 说明 |
+|------|------|
+| 10.1 Wire AgentStatusBar | ChatPanel 中接入 AgentStatusBar + AgentDrawer |
+| 10.2 Wire QuickActions | ChatPanel 中接入 QuickActions 组件 |
+| 10.3 Wire FileUploadDialog | ChatInput 📎 按钮接入 FileUploadDialog |
+| 10.4 Export 后端 | `POST /api/projects/:id/export` + ExportService（TXT/MD/DOCX） |
+| 10.5 Export 前端对接 | ExportDialog 调用真实 API 下载文件 |
+
+---
+
 ## 跨 Phase 约束
 
 ### 代码规范（AGENTS.md §9 强制）
@@ -396,3 +476,12 @@ $env:GIT_COMMITTER_EMAIL='swim1986@126.com'
 | 5.1 | 项目列表页（7 components, store, shared, shadcn, 90 tests, 841 total） | ✅ | `2842dae` |
 | 5.2 | 聊天窗口（18 components, chat-store, 123 tests, 964 total） | ✅ | `e46c32a` |
 | 5.3 | 信息面板（8 tabs, panel-store, event routing, 22 tests, 1061 total） | ✅ | `aece634` |
+| 6.1 | SSE 前端自动连接 | ⏳ | — |
+| 6.2 | 面板数据初始加载 | ⏳ | — |
+| 6.3 | Next.js Auth 中间件 | ⏳ | — |
+| 6.4 | Login 页面 | ⏳ | — |
+| 6.5 | Register 页面 | ⏳ | — |
+| 7.1-7.7 | Cost Tracking System | ⏳ | — |
+| 8.1-8.5 | Logging System | ⏳ | — |
+| 9.1-9.3 | Settings Panel | ⏳ | — |
+| 10.1-10.5 | UI Integration & Export | ⏳ | — |
