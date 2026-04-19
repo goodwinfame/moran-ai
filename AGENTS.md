@@ -78,7 +78,7 @@ packages/
   core/     共享库（DB schema, 类型定义, 工具函数）
 ```
 
-> `packages/agents/` 在 V2 中不再使用（Agent prompt 全部在 OpenCode config 中定义）。
+> `packages/agents/` 在 V2 中不再使用（Agent prompt 定义在项目根目录 `agents/*.md`，由 OpenCode 自动加载）。
 
 ---
 

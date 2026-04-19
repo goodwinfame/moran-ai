@@ -1167,7 +1167,7 @@ export function fail(code: string, message: string, details?: object) {
 
 ## 6. 工具—Agent 映射
 
-每个 Agent 可使用的工具白名单（在 `.opencode/agents/*.md` 的 frontmatter `tools` 字段中配置）：
+每个 Agent 可使用的工具白名单（在 `agents/*.md` 的 frontmatter `tools` 字段中配置）：
 
 ### 墨衡（moheng）— 协调器
 
