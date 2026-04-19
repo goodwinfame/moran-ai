@@ -293,16 +293,16 @@ DB 枚举 `characterRoleEnum`（`packages/core/src/db/schema/enums.ts`）缺少 
 
 ---
 
-## 11. V2 已知文档不一致（待修复）
+## 11. V2 已知文档不一致（已修复）
 
-以下是 cross-check 发现的、需要在 V2 文档中修正的不一致：
+以下是 cross-check 发现的不一致，**已全部修复**：
 
-| 问题 | 影响文件 | 修正内容 |
-|------|---------|---------|
-| 心理模型写成 4 维 | v2-s1, v2-s3, v2-s5, v2-s9 | 改为五维 GHOST/WOUND/LIE/WANT/NEED |
-| Agent 数量不一致 | v2-s0 (写了 10 个但标题不对) | 统一为 10 个 (5核心+3支援+2可选) |
-| Agent 列表不完整 | v2-s2, v2-s10 | 补全所有 10 个 Agent |
-| v2-s4 baseline 内部参考其他 agent | v2-s4 line 357-359 | 已正确，载史/博闻/析典是支援 Agent |
+| 问题 | 影响文件 | 状态 |
+|------|---------|------|
+| 心理模型写成 4 维 | v2-s1, v2-s3, v2-s5, v2-s9 | ✅ 已全部使用五维 GHOST/WOUND/LIE/WANT/NEED |
+| Agent 数量不一致 | v2-s0 | ✅ 已统一为 10 个 (5核心+3支援+2可选) |
+| Agent 列表不完整 | v2-s2, v2-s10 | ✅ 已补全所有 10 个 Agent |
+| v2-s2 server→api-server | v2-s2 line 235 | ✅ 已修正为 api-server |
 
 ---
 
@@ -319,7 +319,7 @@ DB 枚举 `characterRoleEnum`（`packages/core/src/db/schema/enums.ts`）缺少 
 | 设计文档 | ✅ 完成 | 12 篇 V2 设计文档（含 S11 技术方案） |
 | SDD 基础设施 | ✅ 完成 | specs/ 目录、开发流程建立 |
 | MCP 工具规范 | ✅ 完成 | specs/mcp-tools/SPEC.md + S6 重写（18 域 54 工具） |
-| 文档一致性修复 | ⏳ 待开始 | 修复 V2 文档间的不一致 |
+| 文档一致性修复 | ✅ 完成 | V2 文档间不一致已全部修复 |
 | V1 代码清理 | ⏳ 待开始 | 删除无用代码，保留基础设施 |
 | Spec 编写 | ✅ 完成 | 10 个模块全部完成（含 mcp-tools） |
 | 分批实现 | ⏳ 待开始 | 按 Spec 实现 + 测试 |

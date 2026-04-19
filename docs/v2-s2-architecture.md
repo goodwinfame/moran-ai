@@ -232,7 +232,7 @@ interface SessionManager {
 graph TD
   subgraph Monorepo["packages/"]
     Web["web/<br/>Next.js 前端<br/>项目列表 + 主工作页"]
-    Server["server/<br/>Hono 后端<br/>Chat API + Panel API"]
+    Server["api-server/<br/>Hono 后端<br/>REST API + SSE 推送"]
     Core["core/<br/>共享库<br/>Agent 类型 + DB Schema"]
     MCPServer["mcp-server/<br/>MCP Server (V2 新增)<br/>工具定义 + 门禁逻辑"]
   end
