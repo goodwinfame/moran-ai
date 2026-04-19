@@ -1,13 +1,25 @@
 /**
- * Hono 应用定义 — V2 最小骨架
+ * Hono 应用定义 — V2
  *
- * V2 路由将在 SDD Spec 完成后分批添加。
- * 保留依赖注入模式，便于测试。
+ * 路由挂载顺序：
+ * 1. 全局中间件（requestId, cors）
+ * 2. 健康检查（公开）
+ * 3. Auth 路由（公开，不需认证）
+ * 4. requireAuth 中间件（保护后续所有 /api/* 路由）
+ * 5. 业务路由（需认证）
+ * 6. 全局错误处理 + 404
  */
 import { Hono } from "hono";
 import { cors } from "hono/cors";
 import { requestId } from "hono/request-id";
 import { errorHandler } from "./middleware/error-handler.js";
+import { requireAuth } from "./middleware/auth.js";
+import { createAuthRoutes } from "./routes/auth.js";
+
+/** Hono Variables injected by middleware */
+type AppVariables = {
+  userId: string;
+};
 
 /**
  * 应用配置
@@ -21,7 +33,7 @@ export interface AppConfig {
  * 创建 Hono 应用（依赖注入）
  */
 export function createApp(config: AppConfig = {}) {
-  const app = new Hono();
+  const app = new Hono<{ Variables: AppVariables }>();
 
   // ── 全局中间件 ──────────────────────────────────────────
   app.use("*", requestId());
@@ -35,11 +47,18 @@ export function createApp(config: AppConfig = {}) {
     }),
   );
 
-  // ── 健康检查 ────────────────────────────────────────────
+  // ── 健康检查（公开） ────────────────────────────────────
   app.get("/health", (c) => c.json({ status: "ok", version: "2.0.0" }));
 
-  // ── V2 路由将在此处挂载 ─────────────────────────────────
-  // TODO: 按 SDD Spec 分批添加路由
+  // ── Auth 路由（公开，必须在 requireAuth 之前） ──────────
+  app.route("/api/auth", createAuthRoutes());
+
+  // ── 认证中间件（保护后续所有 /api/* 路由） ──────────────
+  app.use("/api/*", requireAuth);
+
+  // ── 业务路由（需认证）将在此处挂载 ─────────────────────
+  // TODO: 按 SDD Spec 分批添加业务路由
+  // app.route("/api/projects", createProjectRoutes());
 
   // ── 全局错误处理 ────────────────────────────────────────
   app.onError(errorHandler);

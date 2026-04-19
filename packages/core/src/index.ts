@@ -16,3 +16,6 @@ export { logger, createLogger, type Logger } from "./logger/index.js";
 
 // Re-export events
 export * from "./events/index.js";
+
+// Re-export services
+export * from "./services/index.js";

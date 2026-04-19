@@ -21,6 +21,10 @@
     "./logger": {
       "import": "./dist/logger/index.js",
       "types": "./dist/logger/index.d.ts"
+    },
+    "./services": {
+      "import": "./dist/services/index.js",
+      "types": "./dist/services/index.d.ts"
     }
   },
   "scripts": {
@@ -33,18 +37,20 @@
     "clean": "rimraf dist tsconfig.tsbuildinfo"
   },
   "dependencies": {
+    "bcryptjs": "^3.0.3",
     "drizzle-orm": "^0.44.0",
-    "postgres": "^3.4.0",
     "pino": "^9.0.0",
+    "postgres": "^3.4.0",
     "zod": "^3.24.0"
   },
   "devDependencies": {
+    "@types/bcryptjs": "^3.0.0",
     "@types/node": "^22.0.0",
-    "drizzle-kit": "^0.31.0",
-    "typescript": "^5.8.0",
-    "vitest": "^3.2.0",
     "@vitest/coverage-v8": "^3.2.0",
+    "drizzle-kit": "^0.31.0",
     "pino-pretty": "^13.0.0",
-    "rimraf": "^6.0.0"
+    "rimraf": "^6.0.0",
+    "typescript": "^5.8.0",
+    "vitest": "^3.2.0"
   }
 }

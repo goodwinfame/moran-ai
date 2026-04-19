@@ -16,6 +16,7 @@
   },
   "dependencies": {
     "@hono/node-server": "^1.14.0",
+    "@hono/zod-validator": "^0.7.6",
     "@moran/core": "workspace:*",
     "@opencode-ai/sdk": "^1.4.0",
     "drizzle-orm": "^0.44.7",

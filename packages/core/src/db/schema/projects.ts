@@ -1,5 +1,6 @@
 import { integer, pgTable, text, timestamp, uuid, varchar } from "drizzle-orm/pg-core";
 import { projectStatusEnum } from "./enums.js";
+import { users } from "./auth.js";
 
 export const projects = pgTable("projects", {
   id: uuid("id").primaryKey().defaultRandom(),
@@ -19,7 +20,9 @@ export const projects = pgTable("projects", {
   currentChapter: integer("current_chapter").default(0),
   currentArc: integer("current_arc").default(0),
   totalWordCount: integer("total_word_count").default(0),
-  userId: text("user_id").default("local"),
+  userId: uuid("user_id")
+    .notNull()
+    .references(() => users.id, { onDelete: "cascade" }),
   currentSessionId: text("current_session_id"),
   createdAt: timestamp("created_at", { withTimezone: true }).defaultNow(),
   updatedAt: timestamp("updated_at", { withTimezone: true }).defaultNow(),
