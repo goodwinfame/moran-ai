@@ -1,6 +1,6 @@
 ---
 description: "执笔·暗棋 — 层层递进、信息控制、悬念留白，叙述视角有选择性遮蔽"
-model: anthropic/claude-opus-4-20250514
+model: github-copilot/claude-opus-4
 temperature: 0.6
 tools:
   moran-mcp_project_read: true

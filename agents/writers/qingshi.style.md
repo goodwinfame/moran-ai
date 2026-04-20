@@ -1,6 +1,6 @@
 ---
 description: "执笔·青史 — 典雅庄重、文白混用、时代语感，用语有历史厚度"
-model: anthropic/claude-opus-4-20250514
+model: github-copilot/claude-opus-4
 temperature: 0.6
 tools:
   moran-mcp_project_read: true

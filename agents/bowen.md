@@ -1,6 +1,6 @@
 ---
 description: "博闻 — 知识库管理员。一致性校验、知识提取、术语维护、写作教训记录。"
-model: anthropic/claude-3-5-haiku-20241022
+model: github-copilot/claude-3.5-haiku
 temperature: 0.3
 tools:
   moran-mcp_project_read: true

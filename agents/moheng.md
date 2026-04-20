@@ -1,6 +1,6 @@
 ---
 description: "墨衡 — 唯一用户入口，全流程协调器。意图识别、流程引导、上下文组装、结果汇总。"
-model: anthropic/claude-sonnet-4-20250514
+model: github-copilot/claude-sonnet-4
 temperature: 0.3
 tools:
   moran-mcp_project_read: true

@@ -1,6 +1,6 @@
 ---
 description: "执笔·素手 — 温暖细腻、长句蓄势、情感细写、氛围渲染先于情节"
-model: anthropic/claude-opus-4-20250514
+model: github-copilot/claude-opus-4
 temperature: 0.8
 tools:
   moran-mcp_project_read: true

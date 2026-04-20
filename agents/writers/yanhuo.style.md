@@ -1,6 +1,6 @@
 ---
 description: "执笔·烟火 — 市井烟火气、口语化、快节奏跳切，对话推动叙事"
-model: openai/gpt-4o
+model: github-copilot/gpt-4o
 temperature: 0.8
 tools:
   moran-mcp_project_read: true

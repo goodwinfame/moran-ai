@@ -1,6 +1,6 @@
 ---
 description: "灵犀 — 灵感碰撞专家。发散→聚焦→结晶三阶段创意生成。"
-model: anthropic/claude-sonnet-4-20250514
+model: github-copilot/claude-sonnet-4
 temperature: 0.9
 tools:
   moran-mcp_brainstorm_create: true

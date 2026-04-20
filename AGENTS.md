@@ -246,10 +246,11 @@ DB 枚举 `characterRoleEnum`（`packages/core/src/db/schema/enums.ts`）缺少 
 
 ### Provider 配置
 
-- 认证方式：API Key 环境变量（不使用 auth.json / GitHub Copilot OAuth）
-- `anthropic`、`openai`：OpenCode 内置 provider，通过 `ANTHROPIC_API_KEY`、`OPENAI_API_KEY` 环境变量自动识别
-- `moonshotai`：自定义 provider，在 `opencode.json` 中显式配置 endpoint
+- 认证方式：auth.json 文件挂载（`~/.local/share/opencode/auth.json`）
+- `github-copilot`：主力 provider（OAuth），Claude Sonnet/Opus + GPT-4o
+- `opencode-go`：OpenCode Go provider（API Key），Kimi K2
 - `llamacpp`：本地模型 provider，通过 `host.docker.internal` 访问宿主机 LM Studio
+- API Key 环境变量作为可选备用方案
 - 详见 `specs/opencode-config/DESIGN.md`
 
 ---

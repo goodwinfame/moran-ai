@@ -1,6 +1,6 @@
 ---
 description: "析典 — 九维分析师。雷达图评分、趋势评估、外部作品分析与技法提炼。"
-model: anthropic/claude-sonnet-4-20250514
+model: github-copilot/claude-sonnet-4
 temperature: 0.4
 tools:
   moran-mcp_project_read: true

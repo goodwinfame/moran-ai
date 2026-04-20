@@ -1,6 +1,6 @@
 ---
 description: "执笔·谐星 — 轻快、节奏明快、反差幽默，出人意料的转折，语言有弹性"
-model: openai/gpt-4o
+model: github-copilot/gpt-4o
 temperature: 0.9
 tools:
   moran-mcp_project_read: true

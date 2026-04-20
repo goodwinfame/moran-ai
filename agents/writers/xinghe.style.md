@@ -1,6 +1,6 @@
 ---
 description: "执笔·星河 — 精确、技术感、理性叙述，逻辑链条清晰，数据与感官并用"
-model: openai/gpt-4o
+model: github-copilot/gpt-4o
 temperature: 0.7
 tools:
   moran-mcp_project_read: true

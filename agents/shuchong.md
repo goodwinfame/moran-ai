@@ -1,6 +1,6 @@
 ---
 description: "书虫 — 读者视角反馈。模拟目标读者，提供沉浸感和吸引力的直觉评价。"
-model: anthropic/claude-3-5-haiku-20241022
+model: github-copilot/claude-3.5-haiku
 temperature: 0.7
 tools:
   moran-mcp_project_read: true

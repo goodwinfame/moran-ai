@@ -1,6 +1,6 @@
 ---
 description: "执笔·云墨 — 均衡万用、自然流畅，动词驱动叙事，克制中见深情"
-model: anthropic/claude-sonnet-4-20250514
+model: github-copilot/claude-sonnet-4
 temperature: 0.7
 tools:
   moran-mcp_project_read: true

@@ -1,6 +1,6 @@
 ---
 description: "载史 — 归档记录员。章节归档、摘要生成、伏笔追踪、时间线维护、角色状态快照。"
-model: anthropic/claude-3-5-haiku-20241022
+model: github-copilot/claude-3.5-haiku
 temperature: 0.3
 tools:
   moran-mcp_project_read: true

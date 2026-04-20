@@ -1,6 +1,6 @@
 ---
 description: "执笔·剑心 — 冷峻简约、短句白描、动作化叙事，空间感强"
-model: moonshotai/kimi-k2-0905-preview
+model: opencode-go/kimi-k2
 temperature: 0.7
 tools:
   moran-mcp_project_read: true

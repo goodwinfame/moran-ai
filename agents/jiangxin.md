@@ -1,6 +1,6 @@
 ---
 description: "匠心 — 世界观/角色/结构设计师。构建世界设定、角色体系、故事大纲。"
-model: anthropic/claude-sonnet-4-20250514
+model: github-copilot/claude-sonnet-4
 temperature: 0.5
 tools:
   moran-mcp_project_read: true

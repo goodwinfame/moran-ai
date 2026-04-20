@@ -1,6 +1,6 @@
 ---
 description: "明镜 — 质量审校员。四轮审校（AI味/逻辑/文学/读者），把关章节质量。"
-model: anthropic/claude-sonnet-4-20250514
+model: github-copilot/claude-sonnet-4
 temperature: 0.2
 tools:
   moran-mcp_project_read: true

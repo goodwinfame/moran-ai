@@ -1,11 +1,5 @@
 {
   "provider": {
-    "moonshotai": {
-      "api": "https://api.moonshot.cn/v1",
-      "options": {
-        "baseURL": "https://api.moonshot.cn/v1"
-      }
-    },
     "llamacpp": {
       "npm": "@ai-sdk/openai-compatible",
       "name": "LM Studio (local)",

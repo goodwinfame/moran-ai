@@ -1,6 +1,6 @@
 # opencode-config — DESIGN
 
-> **状态**：v2（根据用户反馈修订）
+> **状态**：v3（修正认证方式：auth.json 为主，Provider 路由取代直连 API）
 > **模块**：opencode-config
 > **关联**：`AGENTS.md` §5、§8
 
@@ -18,14 +18,14 @@
 **设计决策（已确认）**：
 
 1. **砍掉执笔 Agent** — 墨衡直接路由到子写手，减少一跳
-2. **不用 auth.json** — 全部用 `.env` 里的 API Key 直连 Provider
-3. **直连模型 ID** — `anthropic/claude-sonnet-4-20250514` 而非 `github-copilot/claude-sonnet-4`
+2. **auth.json 为主要认证** — 挂载宿主机 `auth.json` 到容器，包含 GitHub Copilot OAuth + OpenCode API Key
+3. **Provider 路由模型 ID** — `github-copilot/claude-sonnet-4` 而非 `anthropic/claude-sonnet-4-20250514`
 
 ## 2. 设计目标
 
-1. **项目自包含**：`git clone` + 填 API Key → 可运行
-2. **密钥分离**：配置文件可提交，密钥通过 `.env` 注入
-3. **环境一致**：所有环境使用同一份 `opencode.json`
+1. **项目自包含**：`git clone` + 配置 auth.json → 可运行
+2. **密钥分离**：配置文件可提交，认证通过 auth.json 挂载（gitignored）
+3. **环境一致**：所有环境使用同一份 `opencode.json` + `agents/*.md`
 4. **易于维护**：新增 Agent / 修改模型，只改一处
 
 ## 3. 配置架构
@@ -40,11 +40,16 @@
 │  ├── 9 个核心 Agent prompt（frontmatter 含 model/temp）   │
 │  └── writers/*.md — 9 个子写手 prompt（构建产物）           │
 ├─────────────────────────────────────────────────────────┤
+│ auth.json （宿主机 ~/.local/share/opencode/auth.json）    │
+│  ├── github-copilot  — OAuth token（Claude/GPT/Gemini）  │
+│  ├── opencode        — API Key（OpenCode Zen）            │
+│  └── opencode-go     — API Key（Kimi K2 via OpenCode Go）│
+├─────────────────────────────────────────────────────────┤
 │ .env （gitignored，开发者本地填写）                        │
-│  ├── ANTHROPIC_API_KEY    — 必填（核心 Agent + 部分子写手）│
-│  ├── OPENAI_API_KEY       — 可选（星河/烟火/谐星子写手）   │
-│  ├── MOONSHOT_API_KEY     — 可选（剑心子写手）             │
-│  └── DATABASE_URL         — 数据库连接串                   │
+│  ├── OPENCODE_AUTH_JSON  — 可选，自定义 auth.json 路径     │
+│  ├── ANTHROPIC_API_KEY   — 可选备用（auth.json 优先）      │
+│  ├── OPENAI_API_KEY      — 可选备用                       │
+│  └── DATABASE_URL        — 数据库连接串                   │
 ├─────────────────────────────────────────────────────────┤
 │ .env.example （提交到 git，模板 + 注释说明）               │
 └─────────────────────────────────────────────────────────┘
@@ -54,18 +59,19 @@
 
 ```
 开发者本地：
-  opencode.json (git) + agents/ (git) + .env (local)
+  opencode.json (git) + agents/ (git) + auth.json (local) + .env (local)
       │
       ▼
   docker-compose.dev.yml
       │  挂载 opencode.json → /app/opencode.json
       │  挂载 agents/       → /app/agents
-      │  传入 .env          → 容器环境变量（API Keys）
+      │  挂载 auth.json     → /root/.local/share/opencode/auth.json
+      │  传入 .env          → 容器环境变量（备用 API Keys + DATABASE_URL）
       ▼
   OpenCode 容器 (:4096)
       │  读取 opencode.json → Provider + MCP 配置
       │  读取 agents/*.md   → Agent 定义（auto-discovery）
-      │  读取 env vars      → API Keys
+      │  读取 auth.json     → Provider 认证（OAuth + API Keys）
       ▼
   Hono API Server (:3200)
       └── OpenCode SDK → 创建 session → 调度 Agent
@@ -128,31 +134,31 @@ moran-ai/
 
 | Agent | 文件 | 模型 | 温度 |
 |-------|------|------|------|
-| 墨衡 moheng | agents/moheng.md | anthropic/claude-sonnet-4-20250514 | 0.3 |
-| 灵犀 lingxi | agents/lingxi.md | anthropic/claude-sonnet-4-20250514 | 0.9 |
-| 匠心 jiangxin | agents/jiangxin.md | anthropic/claude-sonnet-4-20250514 | 0.5 |
-| 明镜 mingjing | agents/mingjing.md | anthropic/claude-sonnet-4-20250514 | 0.3 |
-| 载史 zaishi | agents/zaishi.md | anthropic/claude-sonnet-4-20250514 | 0.2 |
-| 博闻 bowen | agents/bowen.md | anthropic/claude-sonnet-4-20250514 | 0.3 |
-| 析典 xidian | agents/xidian.md | anthropic/claude-sonnet-4-20250514 | 0.3 |
-| 书虫 shuchong | agents/shuchong.md | anthropic/claude-sonnet-4-20250514 | 0.8 |
-| 点睛 dianjing | agents/dianjing.md | anthropic/claude-sonnet-4-20250514 | 0.7 |
+| 墨衡 moheng | agents/moheng.md | github-copilot/claude-sonnet-4 | 0.3 |
+| 灵犀 lingxi | agents/lingxi.md | github-copilot/claude-sonnet-4 | 0.9 |
+| 匠心 jiangxin | agents/jiangxin.md | github-copilot/claude-sonnet-4 | 0.5 |
+| 明镜 mingjing | agents/mingjing.md | github-copilot/claude-sonnet-4 | 0.2 |
+| 载史 zaishi | agents/zaishi.md | github-copilot/claude-3.5-haiku | 0.3 |
+| 博闻 bowen | agents/bowen.md | github-copilot/claude-3.5-haiku | 0.3 |
+| 析典 xidian | agents/xidian.md | github-copilot/claude-sonnet-4 | 0.4 |
+| 书虫 shuchong | agents/shuchong.md | github-copilot/claude-3.5-haiku | 0.7 |
+| 点睛 dianjing | agents/dianjing.md | github-copilot/claude-sonnet-4 | 0.8 |
 
 **子写手（9 个）** — 通过 `agents/writers/*.md` frontmatter 定义：
 
-| 子写手 | 文件 | 模型 | 温度 | 所需 API Key |
-|--------|------|------|------|-------------|
-| 执笔·云墨 | writers/yunmo.md | anthropic/claude-sonnet-4-20250514 | 0.7 | ANTHROPIC_API_KEY |
-| 执笔·剑心 | writers/jianxin.md | moonshotai/kimi-k2-0905-preview | 0.7 | MOONSHOT_API_KEY |
-| 执笔·星河 | writers/xinghe.md | openai/gpt-4o | 0.7 | OPENAI_API_KEY |
-| 执笔·素手 | writers/sushou.md | anthropic/claude-opus-4-20250514 | 0.8 | ANTHROPIC_API_KEY |
-| 执笔·烟火 | writers/yanhuo.md | openai/gpt-4o | 0.8 | OPENAI_API_KEY |
-| 执笔·暗棋 | writers/anqi.md | anthropic/claude-opus-4-20250514 | 0.6 | ANTHROPIC_API_KEY |
-| 执笔·青史 | writers/qingshi.md | anthropic/claude-opus-4-20250514 | 0.6 | ANTHROPIC_API_KEY |
-| 执笔·夜阑 | writers/yelan.md | llamacpp/gemma-4-27b | 0.7 | 无 |
-| 执笔·谐星 | writers/jiexing.md | openai/gpt-4o | 0.9 | OPENAI_API_KEY |
+| 子写手 | 文件 | 模型 | 温度 | Provider |
+|--------|------|------|------|----------|
+| 执笔·云墨 | writers/yunmo.md | github-copilot/claude-sonnet-4 | 0.7 | github-copilot |
+| 执笔·剑心 | writers/jianxin.md | opencode-go/kimi-k2 | 0.7 | opencode-go |
+| 执笔·星河 | writers/xinghe.md | github-copilot/gpt-4o | 0.7 | github-copilot |
+| 执笔·素手 | writers/sushou.md | github-copilot/claude-opus-4 | 0.8 | github-copilot |
+| 执笔·烟火 | writers/yanhuo.md | github-copilot/gpt-4o | 0.8 | github-copilot |
+| 执笔·暗棋 | writers/anqi.md | github-copilot/claude-opus-4 | 0.6 | github-copilot |
+| 执笔·青史 | writers/qingshi.md | github-copilot/claude-opus-4 | 0.6 | github-copilot |
+| 执笔·夜阑 | writers/yelan.md | llamacpp/gemma-4-27b | 0.7 | llamacpp |
+| 执笔·谐星 | writers/jiexing.md | github-copilot/gpt-4o | 0.9 | github-copilot |
 
-> 夜阑使用本地 Gemma4 模型。若本地模型不可用，在 frontmatter 中配置 `fallback_model: anthropic/claude-opus-4-20250514`。
+> 夜阑使用本地 Gemma4 模型。若本地模型不可用，在 frontmatter 中配置 `fallback_model: github-copilot/claude-opus-4`。
 
 ### 5.3 墨衡路由变更
 
@@ -174,24 +180,19 @@ moheng.md 意图路由表中，写作相关条目变更：
 
 ### 6.1 Provider 清单
 
-| Provider | 用途 | 认证方式 | 配置需求 |
-|----------|------|---------|---------|
-| `anthropic` | Claude Sonnet/Opus（核心 Agent + 部分子写手） | ANTHROPIC_API_KEY | 内置，无需显式配置 |
-| `openai` | GPT-4o（星河/烟火/谐星子写手） | OPENAI_API_KEY | 内置，无需显式配置 |
-| `moonshotai` | Kimi K2（剑心子写手） | MOONSHOT_API_KEY | 需配 endpoint URL |
-| `llamacpp` | 本地 Gemma4（夜阑子写手） | 无 | 需配 baseURL |
+| Provider | 用途 | 认证方式 | Model ID 格式 | 配置需求 |
+|----------|------|---------|--------------|---------|
+| `github-copilot` | Claude Sonnet/Opus + GPT-4o（核心 Agent + 多数子写手） | OAuth (auth.json) | `github-copilot/<model>` | 内置，无需显式配置 |
+| `opencode-go` | Kimi K2（剑心子写手） | API Key (auth.json) | `opencode-go/<model>` | 内置，无需显式配置 |
+| `llamacpp` | 本地 Gemma4（夜阑子写手） | 无 | `llamacpp/<model>` | 需配 baseURL |
 
 ### 6.2 opencode.json provider 配置
 
 ```jsonc
 {
   "provider": {
-    "moonshotai": {
-      "api": "https://api.moonshot.cn/v1",
-      "options": {
-        "baseURL": "https://api.moonshot.cn/v1"
-      }
-    },
+    // github-copilot 和 opencode-go 是 OpenCode 内置 provider，无需显式配置
+    // 认证通过 auth.json 自动读取
     "llamacpp": {
       "npm": "@ai-sdk/openai-compatible",
       "name": "LM Studio (local)",
@@ -211,16 +212,40 @@ moheng.md 意图路由表中，写作相关条目变更：
 }
 ```
 
-`anthropic` 和 `openai` 是 OpenCode 内置 provider，无需显式配置。API Key 通过环境变量自动读取。
+### 6.3 auth.json 认证
 
-### 6.3 API Key 环境变量映射
+auth.json 是 OpenCode 的核心认证文件，位于 `~/.local/share/opencode/auth.json`。
 
-| Provider | 环境变量 | 必要性 |
-|----------|---------|--------|
-| anthropic | `ANTHROPIC_API_KEY` | **必填**（核心 Agent 全部依赖） |
-| openai | `OPENAI_API_KEY` | 可选（仅 3 个子写手需要） |
-| moonshotai | `MOONSHOT_API_KEY` | 可选（仅剑心需要） |
-| llamacpp | 无 | 本地服务，无认证 |
+```jsonc
+{
+  "github-copilot": {
+    "type": "oauth",        // GitHub Copilot 使用 OAuth
+    "access": "gho_...",
+    "refresh": "gho_...",
+    "expires": 0
+  },
+  "opencode": {
+    "type": "api",          // OpenCode Zen
+    "key": "sk-..."
+  },
+  "opencode-go": {          // OpenCode Go（Kimi K2 等）
+    "type": "api",
+    "key": "sk-..."
+  }
+}
+```
+
+> **注意**：auth.json 由 OpenCode CLI 登录时自动生成（`opencode auth login`）。开发者需确保本地已完成认证。
+
+### 6.4 备用 API Key 环境变量
+
+当 auth.json 不可用时，可通过环境变量传入 API Key 作为备用：
+
+| 环境变量 | 必要性 | 说明 |
+|---------|--------|------|
+| `ANTHROPIC_API_KEY` | 可选备用 | auth.json 中 github-copilot 优先 |
+| `OPENAI_API_KEY` | 可选备用 | auth.json 中 github-copilot 优先 |
+| `MOONSHOT_API_KEY` | 可选备用 | auth.json 中 opencode-go 优先 |
 
 ## 7. Docker 集成
 
@@ -237,11 +262,13 @@ services:
       - ./opencode.json:/app/opencode.json:ro
       - ./agents:/app/agents:ro
       - ./packages/mcp-server:/app/packages/mcp-server:ro
+      - ${OPENCODE_AUTH_JSON:-${USERPROFILE}/.local/share/opencode/auth.json}:/root/.local/share/opencode/auth.json:ro
     environment:
-      - ANTHROPIC_API_KEY=${ANTHROPIC_API_KEY}
+      - DATABASE_URL=${DATABASE_URL}
+      # API keys below are optional — primary auth is via auth.json volume mount
+      - ANTHROPIC_API_KEY=${ANTHROPIC_API_KEY:-}
       - OPENAI_API_KEY=${OPENAI_API_KEY:-}
       - MOONSHOT_API_KEY=${MOONSHOT_API_KEY:-}
-      - DATABASE_URL=${DATABASE_URL}
     restart: unless-stopped
     healthcheck:
       test: ["CMD-SHELL", "wget --no-verbose --tries=1 --spider http://127.0.0.1:4096/global/health || exit 1"]
@@ -253,23 +280,17 @@ services:
 
 ### 7.2 关键变更
 
-| 项 | 旧 | 新 |
-|----|----|----|
-| auth.json 挂载 | `${USERPROFILE}/.local/share/opencode/auth.json` | **删除** |
-| API Key 传入 | 无 | ANTHROPIC / OPENAI / MOONSHOT_API_KEY 从 .env 注入 |
-| 模型 ID | `github-copilot/*` | `anthropic/*`、`openai/*`、`moonshotai/*` |
+| 项 | v1 commit | v3 修正 |
+|----|-----------|---------|
+| auth.json 挂载 | 已删除 | **恢复**：`${USERPROFILE}/.local/share/opencode/auth.json` → 容器 |
+| API Key 传入 | ANTHROPIC 必填 | 全部可选（auth.json 优先） |
+| 模型 ID | `anthropic/*`、`openai/*` | `github-copilot/*`、`opencode-go/*` |
 
 ## 8. opencode.json 完整结构
 
 ```jsonc
 {
   "provider": {
-    "moonshotai": {
-      "api": "https://api.moonshot.cn/v1",
-      "options": {
-        "baseURL": "https://api.moonshot.cn/v1"
-      }
-    },
     "llamacpp": {
       "npm": "@ai-sdk/openai-compatible",
       "name": "LM Studio (local)",
@@ -299,7 +320,9 @@ services:
 }
 ```
 
-> **Agent 定义不在此文件中**：核心 Agent（9 个）通过 `agents/*.md` frontmatter 自动发现。子写手（9 个）通过 `agents/writers/*.md` frontmatter 定义。如果 OpenCode 不扫描子目录，需要在此补充 agent 注册条目（见 §12 待验证）。
+> **内置 Provider（不需配置）**：`github-copilot`、`opencode`、`opencode-go` — 通过 auth.json 自动认证。
+> **自定义 Provider（需配置）**：`llamacpp` — 本地 LM Studio，无认证。
+> **Agent 定义不在此文件中**：核心 Agent（9 个）通过 `agents/*.md` frontmatter 自动发现。子写手（9 个）通过 `agents/writers/*.md` frontmatter 定义。
 
 ## 9. .env.example 模板
 
@@ -321,17 +344,18 @@ NODE_ENV=development
 # ---- OpenCode ----
 OPENCODE_BASE_URL=http://127.0.0.1:4096
 
-# ---- LLM API Keys ----
-# Anthropic（必填 — 核心 Agent + 部分子写手均使用 Claude）
-# 获取：https://console.anthropic.com/
+# ---- Auth ----
+SESSION_SECRET=change-me-to-a-random-string-at-least-32-chars
+
+# ---- OpenCode 认证 ----
+# 主要认证方式：auth.json 文件（自动挂载到 Docker 容器）
+# 默认路径：${USERPROFILE}/.local/share/opencode/auth.json（Windows）
+# 如需自定义路径，取消注释下行：
+# OPENCODE_AUTH_JSON=C:/Users/你的用户名/.local/share/opencode/auth.json
+
+# ---- LLM API Keys（可选 — 仅作 auth.json 的备用方案）----
 ANTHROPIC_API_KEY=
-
-# OpenAI（可选 — 星河/烟火/谐星子写手使用 GPT-4o）
-# 获取：https://platform.openai.com/
 OPENAI_API_KEY=
-
-# Moonshot（可选 — 剑心子写手使用 Kimi K2）
-# 获取：https://platform.moonshot.cn/
 MOONSHOT_API_KEY=
 
 # ---- WebUI ----
@@ -350,16 +374,21 @@ pnpm install
 
 # 3. 配置环境变量
 cp .env.example .env
-# 编辑 .env，至少填入 ANTHROPIC_API_KEY
+# 编辑 .env，填入 DATABASE_URL 等基础配置
 
-# 4. 构建子写手 Prompt（如有修改 _base.md 或 *.style.md）
+# 4. 确保 OpenCode 认证就绪
+# auth.json 默认位于 ~/.local/share/opencode/auth.json
+# 包含 GitHub Copilot OAuth + OpenCode API Key
+# 如未登录，先执行：opencode auth login
+
+# 5. 构建子写手 Prompt（如有修改 _base.md 或 *.style.md）
 pnpm run build:prompts
 
-# 5. 启动服务
+# 6. 启动服务
 docker compose -f docker-compose.dev.yml up -d   # PostgreSQL + OpenCode
 pnpm run dev                                      # Hono + Next.js
 
-# 6. 验证
+# 7. 验证
 curl http://localhost:4096/global/health     # OpenCode
 curl http://localhost:3200/api/health        # API Server
 open http://localhost:3000                   # Web UI
@@ -454,7 +483,7 @@ tools:
 |------|---------|
 | OpenCode 是否扫描 `agents/` 子目录 | 创建 `agents/writers/yunmo.md` → 检查 agent 是否可调度 |
 | `fallback_model` 在 provider 不可达时是否自动切换 | Docker 内不启动 LM Studio，观察夜阑是否 fallback |
-| `moonshotai` provider API Key 环境变量名是否为 `MOONSHOT_API_KEY` | 查 OpenCode 文档或测试 |
+| `opencode-go` provider 是否需要单独的 auth.json 条目 | 检查容器日志是否识别 opencode-go provider |
 | `host.docker.internal` 在 Linux Docker 上是否可用 | Linux 需要 `extra_hosts: ["host.docker.internal:host-gateway"]` |
 
 ## 13. AGENTS.md 同步更新
@@ -473,7 +502,7 @@ tools:
 4. 更新 `opencode.json`（provider + MCP）
 5. 创建 `.env.example`
 6. 更新 `.env`（补充 ANTHROPIC_API_KEY 等占位）
-7. 更新 `docker-compose.dev.yml`（去掉 auth mount，加 env 传入）
+7. 更新 `docker-compose.dev.yml`（恢复 auth.json 挂载，API Key 改为可选）
 8. 更新 `agents/moheng.md`（路由表变更）
 9. 删除 `agents/zhibi.md`（内容已迁移到 `_base.md`）
 10. 更新 `AGENTS.md`

@@ -1,7 +1,7 @@
 ---
 description: "执笔·夜阑 — 压抑、感官描写密集、心理暗示，潜意识浮现于文字表面"
 model: llamacpp/gemma-4-27b
-fallback_model: anthropic/claude-opus-4-20250514
+fallback_model: github-copilot/claude-opus-4
 temperature: 0.7
 tools:
   moran-mcp_project_read: true

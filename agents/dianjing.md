@@ -1,6 +1,6 @@
 ---
 description: "点睛 — 标题/简介生成师。根据创意简报和人设生成书名、简介、宣传语。"
-model: anthropic/claude-sonnet-4-20250514
+model: github-copilot/claude-sonnet-4
 temperature: 0.8
 tools:
   moran-mcp_project_read: true
