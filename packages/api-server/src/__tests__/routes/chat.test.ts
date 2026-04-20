@@ -502,7 +502,7 @@ describe("GET /api/chat/events", () => {
     expect(body).toContain("event: text");
   });
 
-  it("transforms events via EventTransformer and broadcasts them", async () => {
+  it("transforms events via EventTransformer and buffers them (no broadcast)", async () => {
     authenticatedSession();
 
     const rawEvent = { type: "session.event.part.text", sessionId: "session-abc", data: { chunk: "hi" } };
@@ -532,9 +532,16 @@ describe("GET /api/chat/events", () => {
     await new Promise((r) => setTimeout(r, 10));
     enqueueEvent?.(rawEvent);
 
-    await responsePromise;
+    const res = await responsePromise;
 
     expect(mockTransform).toHaveBeenCalledWith(rawEvent);
-    expect(mockBroadcaster.broadcast).toHaveBeenCalledWith("session-abc", transformedEvent);
+    // buffer() is used for replay — NOT broadcast() which would fan out to all connections
+    expect(mockBroadcaster.buffer).toHaveBeenCalledWith("session-abc", transformedEvent);
+    expect(mockBroadcaster.broadcast).not.toHaveBeenCalled();
+
+    // Verify the event was written directly to this connection's stream
+    const body = await res.text();
+    expect(body).toContain("id: 1");
+    expect(body).toContain("event: text");
   });
 });

@@ -128,6 +128,10 @@ export function createChatRoutes() {
       }, 30_000);
 
       // ── 5. Process event stream ────────────────────────────────────────────
+      // Each connection reads its own OpenCode subscription and writes ONLY
+      // to its own stream. broadcaster.buffer() stores events for Last-Event-Id
+      // replay but does NOT fan out to other connections. This prevents the N²
+      // duplication bug where N connections each broadcast to all N peers.
       try {
         const reader = eventStream.getReader();
         try {
@@ -136,7 +140,12 @@ export function createChatRoutes() {
             if (done) break;
             const sseEvent = transformer.transform(value);
             if (sseEvent) {
-              await broadcaster.broadcast(sessionId, sseEvent);
+              broadcaster.buffer(sessionId, sseEvent);
+              await stream.writeSSE({
+                id: String(sseEvent.id),
+                event: sseEvent.type,
+                data: JSON.stringify(sseEvent.data),
+              });
             }
           }
         } finally {
