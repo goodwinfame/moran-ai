@@ -151,6 +151,127 @@ export async function mockWorkspaceApis(page: Page, projectId: string) {
   );
 }
 
+// ── Inline Chat Mocks ──────────────────────────────────────────────────────────
+
+/** Build SSE body from events array */
+function buildSSEBody(
+  events: Array<{ event: string; data: Record<string, unknown> }>,
+): string {
+  return (
+    events.map((e) => `event: ${e.event}\ndata: ${JSON.stringify(e.data)}\n`).join("\n") + "\n"
+  );
+}
+
+/** Mock all APIs needed for inline chat interaction */
+export async function mockInlineChatApis(page: Page, responseText: string) {
+  // 1. Mock /api/chat/session — returns sessionId for SSE connection
+  await page.route("**/api/chat/session**", (route) =>
+    route.fulfill({
+      contentType: "application/json",
+      body: JSON.stringify({ ok: true, data: { sessionId: "test-session-inline" } }),
+    }),
+  );
+
+  // 2. Mock SSE endpoint — returns text + message_complete events
+  await page.route("**/api/chat/events**", (route) =>
+    route.fulfill({
+      status: 200,
+      contentType: "text/event-stream",
+      body: buildSSEBody([
+        { event: "text", data: { text: responseText } },
+        { event: "message_complete", data: {} },
+      ]),
+    }),
+  );
+
+  // 3. Mock /api/chat/send — fire-and-forget POST
+  await page.route("**/api/chat/send", (route) =>
+    route.fulfill({
+      contentType: "application/json",
+      body: JSON.stringify({
+        ok: true,
+        data: { messageId: "msg-test-1", sessionId: "test-session-inline" },
+      }),
+    }),
+  );
+}
+
+/** Mock inline chat APIs that return an error SSE event */
+export async function mockInlineChatError(page: Page, errorMessage: string) {
+  await page.route("**/api/chat/session**", (route) =>
+    route.fulfill({
+      contentType: "application/json",
+      body: JSON.stringify({ ok: true, data: { sessionId: "test-session-inline" } }),
+    }),
+  );
+
+  await page.route("**/api/chat/events**", (route) =>
+    route.fulfill({
+      status: 200,
+      contentType: "text/event-stream",
+      body: buildSSEBody([{ event: "error", data: { message: errorMessage } }]),
+    }),
+  );
+
+  await page.route("**/api/chat/send", (route) =>
+    route.fulfill({
+      contentType: "application/json",
+      body: JSON.stringify({
+        ok: true,
+        data: { messageId: "msg-test-1", sessionId: "test-session-inline" },
+      }),
+    }),
+  );
+}
+
+/**
+ * Mock inline chat APIs where the session endpoint hangs indefinitely.
+ * Keeps isSending=true so the disabled state can be verified.
+ */
+export async function mockInlineChatHangingSession(page: Page) {
+  // Never fulfill the session request — leaves the store stuck in isSending=true
+  await page.route("**/api/chat/session**", () => {
+    // Intentionally no route.fulfill() call
+  });
+}
+
+/**
+ * Mock inline chat APIs with a per-call counter for multi-round tests.
+ * Each call to the SSE endpoint returns a response with the round number.
+ */
+export async function mockInlineChatMultiRound(page: Page) {
+  await page.route("**/api/chat/session**", (route) =>
+    route.fulfill({
+      contentType: "application/json",
+      body: JSON.stringify({ ok: true, data: { sessionId: "test-session-inline" } }),
+    }),
+  );
+
+  let sseCallCount = 0;
+  await page.route("**/api/chat/events**", (route) => {
+    sseCallCount++;
+    const roundNum = sseCallCount;
+    route.fulfill({
+      status: 200,
+      contentType: "text/event-stream",
+      body: buildSSEBody([
+        { event: "text", data: { text: `回复${roundNum}` } },
+        { event: "message_complete", data: {} },
+      ]),
+    });
+  });
+
+  await page.route("**/api/chat/send", (route) =>
+    route.fulfill({
+      contentType: "application/json",
+      body: JSON.stringify({
+        ok: true,
+        data: { messageId: "msg-test-multi", sessionId: "test-session-inline" },
+      }),
+    }),
+  );
+}
+
 // Set session cookie to simulate authenticated user
 export async function setAuthCookie(page: Page, baseURL: string) {
   await page.context().addCookies([
