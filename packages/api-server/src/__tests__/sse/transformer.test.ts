@@ -34,13 +34,16 @@ describe("EventTransformer", () => {
     vi.clearAllMocks();
   });
 
-  // ── message.part.updated — text events ────────────────────────────────────
+  // ── message.part.delta — streaming text tokens ──────────────────────────────
 
-  describe("message.part.updated — text events", () => {
-    it("maps text part with delta → 'text' with { text: delta }", () => {
+  describe("message.part.delta — streaming text", () => {
+    it("maps text field delta → 'text' with { text: delta }", () => {
       const result = transformer.transform(
-        makeRaw("message.part.updated", {
-          part: { type: "text" },
+        makeRaw("message.part.delta", {
+          sessionID: "sess-1",
+          messageID: "msg-1",
+          partID: "prt-1",
+          field: "text",
           delta: "hello world",
         }),
       );
@@ -49,10 +52,58 @@ describe("EventTransformer", () => {
       expect(result?.data).toEqual({ text: "hello world" });
     });
 
-    it("returns null for text part without delta", () => {
+    it("maps empty string delta → 'text' (empty chunk is valid)", () => {
+      const result = transformer.transform(
+        makeRaw("message.part.delta", { field: "text", delta: "" }),
+      );
+      expect(result).not.toBeNull();
+      expect(result?.type).toBe("text");
+      expect(result?.data).toEqual({ text: "" });
+    });
+
+    it("returns null for non-text field", () => {
+      const result = transformer.transform(
+        makeRaw("message.part.delta", { field: "reasoning", delta: "thinking..." }),
+      );
+      expect(result).toBeNull();
+    });
+
+    it("returns null when delta is undefined", () => {
+      const result = transformer.transform(
+        makeRaw("message.part.delta", { field: "text" }),
+      );
+      expect(result).toBeNull();
+    });
+
+    it("returns null when field is undefined", () => {
+      const result = transformer.transform(
+        makeRaw("message.part.delta", { delta: "orphan chunk" }),
+      );
+      expect(result).toBeNull();
+    });
+
+    it("returns null when data is null", () => {
+      const result = transformer.transform(makeRaw("message.part.delta", null));
+      expect(result).toBeNull();
+    });
+  });
+
+  // ── message.part.updated — text events (skipped, handled by delta) ────────
+
+  describe("message.part.updated — text events", () => {
+    it("returns null for text part (text streaming is via message.part.delta)", () => {
       const result = transformer.transform(
         makeRaw("message.part.updated", {
-          part: { type: "text" },
+          part: { type: "text", text: "full accumulated text" },
+        }),
+      );
+      expect(result).toBeNull();
+    });
+
+    it("returns null for empty text part (initial creation)", () => {
+      const result = transformer.transform(
+        makeRaw("message.part.updated", {
+          part: { type: "text", text: "" },
         }),
       );
       expect(result).toBeNull();
@@ -69,7 +120,6 @@ describe("EventTransformer", () => {
       const result = transformer.transform(
         makeRaw("message.part.updated", {
           part: { toolName: "something" },
-          delta: "text",
         }),
       );
       expect(result).toBeNull();
@@ -360,7 +410,7 @@ describe("EventTransformer", () => {
 
     it("increments monotonically for each successful transform", () => {
       const e1 = transformer.transform(
-        makeRaw("message.part.updated", { part: { type: "text" }, delta: "hi" }),
+        makeRaw("message.part.delta", { field: "text", delta: "hi" }),
       );
       const e2 = transformer.transform(makeRaw("subtask.start", { agentId: "a" }));
       const e3 = transformer.transform(makeRaw("chapter.token", { token: "字" }));
@@ -373,7 +423,7 @@ describe("EventTransformer", () => {
 
     it("skips counter for unknown types between known ones", () => {
       const e1 = transformer.transform(
-        makeRaw("message.part.updated", { part: { type: "text" }, delta: "hello" }),
+        makeRaw("message.part.delta", { field: "text", delta: "hello" }),
       );
       transformer.transform(makeRaw("unknown.type")); // should not increment
       const e2 = transformer.transform(makeRaw("subtask.start", {}));
@@ -384,7 +434,7 @@ describe("EventTransformer", () => {
 
     it("skips counter for null-returning message.part.updated (no delta)", () => {
       const e1 = transformer.transform(
-        makeRaw("message.part.updated", { part: { type: "text" }, delta: "chunk" }),
+        makeRaw("message.part.delta", { field: "text", delta: "chunk" }),
       );
       transformer.transform(makeRaw("message.part.updated", { part: { type: "text" } }));
       const e2 = transformer.transform(makeRaw("session.idle", {}));
@@ -420,8 +470,8 @@ describe("EventTransformer", () => {
 
     it("text event data is { text: delta }, not the raw data object", () => {
       const result = transformer.transform(
-        makeRaw("message.part.updated", {
-          part: { type: "text" },
+        makeRaw("message.part.delta", {
+          field: "text",
           delta: "streaming chunk",
           extraField: "ignored",
         }),
@@ -436,7 +486,7 @@ describe("EventTransformer", () => {
     it("sets timestamp close to Date.now()", () => {
       const before = Date.now();
       const result = transformer.transform(
-        makeRaw("message.part.updated", { part: { type: "text" }, delta: "hi" }),
+        makeRaw("message.part.delta", { field: "text", delta: "hi" }),
       );
       const after = Date.now();
       expect(result?.timestamp).toBeGreaterThanOrEqual(before);

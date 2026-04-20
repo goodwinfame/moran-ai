@@ -2,7 +2,8 @@
  * EventTransformer — Maps OpenCode native events to V2 SSE event format.
  *
  * OpenCode SDK (@opencode-ai/sdk) emits events via SSE. Key native event types:
- * - "message.part.updated" — multiplexed: carries text chunks, tool calls/results,
+ * - "message.part.delta"   — streaming text tokens: { field: "text", delta: "chunk" }
+ * - "message.part.updated" — multiplexed part state: carries tool calls/results,
  *   step-start/finish. The `part.type` field disambiguates.
  * - "session.idle"  — session finished processing → V2 "message_complete"
  * - "session.error" — session error → V2 "error"
@@ -108,12 +109,19 @@ export class EventTransformer {
   // ── Private mapping logic ───────────────────────────────────────────────────
 
   private mapEvent(raw: OpenCodeEvent): MappedEvent | null {
-    // Special handling: message.part.updated is multiplexed by part.type
+    // Streaming text deltas — the primary text delivery mechanism.
+    // OpenCode emits "message.part.delta" with { field: "text", delta: "chunk" }
+    // for each streaming token, separate from "message.part.updated".
+    if (raw.type === "message.part.delta") {
+      return this.mapPartDelta(raw.data);
+    }
+
+    // Part state updates — multiplexed by part.type (tool calls, step lifecycle)
     if (raw.type === "message.part.updated") {
       return this.mapPartUpdated(raw.data);
     }
 
-    // Special handling: session.error extracts error message
+    // Session error — extract error message
     if (raw.type === "session.error") {
       return { type: "error", data: this.extractErrorData(raw.data) };
     }
@@ -125,10 +133,30 @@ export class EventTransformer {
   }
 
   /**
+   * Map `message.part.delta` events — streaming text token delivery.
+   *
+   * OpenCode properties shape: { sessionID, messageID, partID, field, delta }
+   * Only `field === "text"` is mapped; other fields (if any) are ignored.
+   */
+  private mapPartDelta(data: unknown): MappedEvent | null {
+    const props = data as Record<string, unknown> | null;
+    if (!props) return null;
+
+    const field = props["field"] as string | undefined;
+    const delta = props["delta"] as string | undefined;
+
+    if (field === "text" && delta !== undefined) {
+      return { type: "text", data: { text: delta } };
+    }
+
+    return null;
+  }
+
+  /**
    * Map `message.part.updated` events based on the nested `part.type`.
    *
-   * OpenCode properties shape: { part: Part, delta?: string }
-   * - part.type "text"            + delta → V2 "text" { text: delta }
+   * OpenCode properties shape: { part: Part, time }
+   * - part.type "text"            → SKIP (text streaming is via message.part.delta)
    * - part.type "tool-invocation"         → V2 "tool_call" or "tool_result"
    * - part.type "step-start"              → V2 "subtask_start"
    * - part.type "step-finish"             → V2 "subtask_end"
@@ -141,14 +169,12 @@ export class EventTransformer {
     if (!part || typeof part["type"] !== "string") return null;
 
     const partType = part["type"] as string;
-    const delta = props["delta"] as string | undefined;
 
     switch (partType) {
       case "text":
-        // Only emit when there's a streaming delta chunk
-        if (delta !== undefined) {
-          return { type: "text", data: { text: delta } };
-        }
+        // Text streaming is handled by message.part.delta events.
+        // message.part.updated for text carries initial (empty) and final (full)
+        // state — both are skipped since frontend accumulates from deltas.
         return null;
 
       case "tool-invocation": {
