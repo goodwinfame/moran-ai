@@ -128,6 +128,25 @@ describe("POST /api/chat/send", () => {
     expect(mockSendMessage).toHaveBeenCalledWith("session-abc", "帮我写第一章");
   });
 
+  it("accepts null projectId for global/inline chat", async () => {
+    authenticatedSession();
+    mockGetOrCreateSession.mockResolvedValue("session-global");
+    mockSendMessage.mockResolvedValue({ messageId: "msg-789" });
+
+    const res = await jsonPost("/api/chat/send", {
+      projectId: null,
+      message: "你好墨衡",
+    });
+
+    expect(res.status).toBe(200);
+    const body = await res.json();
+    expect(body.ok).toBe(true);
+    expect(body.data.messageId).toBe("msg-789");
+
+    expect(mockGetOrCreateSession).toHaveBeenCalledWith("user-1", "__global__");
+    expect(mockSendMessage).toHaveBeenCalledWith("session-global", "你好墨衡");
+  });
+
   it("accepts optional attachments field", async () => {
     authenticatedSession();
     mockGetOrCreateSession.mockResolvedValue("session-abc");

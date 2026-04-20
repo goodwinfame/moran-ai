@@ -24,7 +24,7 @@ type Variables = { userId: string };
 // ── Zod schemas ────────────────────────────────────────────────────────────
 
 const sendBodySchema = z.object({
-  projectId: z.string(),
+  projectId: z.string().nullable(),
   message: z.string(),
   attachments: z.array(z.string()).optional(),
 });
@@ -58,9 +58,10 @@ export function createChatRoutes() {
   chat.post("/send", zValidator("json", sendBodySchema), async (c) => {
     const { projectId, message } = c.req.valid("json");
     const userId = c.get("userId");
+    const effectiveProjectId = projectId ?? "__global__";
 
     try {
-      const sessionId = await sessionManager.getOrCreateSession(userId, projectId);
+      const sessionId = await sessionManager.getOrCreateSession(userId, effectiveProjectId);
       const result = await sessionManager.sendMessage(sessionId, message);
       return ok(c, { messageId: result.messageId });
     } catch (err) {
