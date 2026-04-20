@@ -77,15 +77,15 @@ export class SSEClient {
   private openConnection(): void {
     if (this.stopped || this.sessionId === null) return;
 
-    const url = new URL(`${this.baseUrl}/api/chat/events`);
-    url.searchParams.set("sessionId", this.sessionId);
-
-    // Pass lastEventId as query param for server-side replay
+    // Build URL as relative path (EventSource resolves against page origin).
+    // baseUrl is "/api", so path becomes "/api/chat/events?sessionId=…"
+    const params = new URLSearchParams();
+    params.set("sessionId", this.sessionId);
     if (this.lastEventId !== null) {
-      url.searchParams.set("lastEventId", this.lastEventId);
+      params.set("lastEventId", this.lastEventId);
     }
 
-    this.eventSource = new EventSource(url.toString());
+    this.eventSource = new EventSource(`${this.baseUrl}/chat/events?${params.toString()}`);
 
     this.eventSource.onopen = () => {
       this.reconnectAttempts = 0;

@@ -86,7 +86,7 @@ afterEach(() => {
 describe("SSEClient", () => {
   describe("connect()", () => {
     it("creates EventSource with correct URL", () => {
-      const client = new SSEClient("http://localhost:3000", {});
+      const client = new SSEClient("http://localhost:3000/api", {});
       client.connect("session-123");
 
       expect(lastInstance).not.toBeNull();
@@ -95,7 +95,7 @@ describe("SSEClient", () => {
     });
 
     it("includes lastEventId in URL on reconnect", () => {
-      const client = new SSEClient("http://localhost:3000", {});
+      const client = new SSEClient("http://localhost:3000/api", {});
       client.connect("session-abc");
 
       // Simulate receiving an event with an id
@@ -111,7 +111,7 @@ describe("SSEClient", () => {
 
     it("calls onConnect handler when connection opens", () => {
       const onConnect = vi.fn();
-      const client = new SSEClient("http://localhost:3000", { onConnect });
+      const client = new SSEClient("http://localhost:3000/api", { onConnect });
       client.connect("session-x");
       lastInstance!.triggerOpen();
       expect(onConnect).toHaveBeenCalledOnce();
@@ -119,7 +119,7 @@ describe("SSEClient", () => {
 
     it("dispatches typed event data to the matching handler", () => {
       const textHandler = vi.fn();
-      const client = new SSEClient("http://localhost:3000", { text: textHandler });
+      const client = new SSEClient("http://localhost:3000/api", { text: textHandler });
       client.connect("s1");
       lastInstance!.triggerOpen();
       lastInstance!.triggerEvent("text", { content: "hello world" });
@@ -130,7 +130,7 @@ describe("SSEClient", () => {
       const handlers = Object.fromEntries(
         SSE_EVENT_TYPES.map((t) => [t, vi.fn()]),
       );
-      const client = new SSEClient("http://localhost:3000", handlers);
+      const client = new SSEClient("http://localhost:3000/api", handlers);
       client.connect("s1");
       lastInstance!.triggerOpen();
 
@@ -145,7 +145,7 @@ describe("SSEClient", () => {
 
     it("resets reconnectAttempts to 0 after successful connection", () => {
       const onReconnect = vi.fn();
-      const client = new SSEClient("http://localhost:3000", { onReconnect });
+      const client = new SSEClient("http://localhost:3000/api", { onReconnect });
       client.connect("s1");
 
       // Fail once → reconnectAttempts becomes 1
@@ -155,7 +155,7 @@ describe("SSEClient", () => {
       // Now succeed → reconnectAttempts resets
       const onConnect = vi.fn();
       // Re-connect on a fresh client to verify reset
-      const client2 = new SSEClient("http://localhost:3000", { onConnect });
+      const client2 = new SSEClient("http://localhost:3000/api", { onConnect });
       client2.connect("s2");
       lastInstance!.triggerOpen();
       expect(onConnect).toHaveBeenCalled();
@@ -167,7 +167,7 @@ describe("SSEClient", () => {
 
   describe("reconnection with exponential backoff", () => {
     it("reconnects after 1s on first failure", () => {
-      const client = new SSEClient("http://localhost:3000", {});
+      const client = new SSEClient("http://localhost:3000/api", {});
       client.connect("s1");
       const firstInstance = lastInstance;
 
@@ -185,7 +185,7 @@ describe("SSEClient", () => {
     });
 
     it("doubles delay on successive failures (2s, 4s, 8s...)", () => {
-      const client = new SSEClient("http://localhost:3000", {});
+      const client = new SSEClient("http://localhost:3000/api", {});
       client.connect("s1");
 
       const delays = [1000, 2000, 4000, 8000, 16000];
@@ -204,7 +204,7 @@ describe("SSEClient", () => {
     });
 
     it("caps reconnect delay at 30s", () => {
-      const client = new SSEClient("http://localhost:3000", {});
+      const client = new SSEClient("http://localhost:3000/api", {});
       client.connect("s1");
 
       // Drive 5 failures to exhaust delays up to 16s, then check cap
@@ -226,7 +226,7 @@ describe("SSEClient", () => {
 
     it("calls onReconnect with the attempt number", () => {
       const onReconnect = vi.fn();
-      const client = new SSEClient("http://localhost:3000", { onReconnect });
+      const client = new SSEClient("http://localhost:3000/api", { onReconnect });
       client.connect("s1");
 
       lastInstance!.triggerError();
@@ -240,7 +240,7 @@ describe("SSEClient", () => {
 
     it("calls onDisconnect on error", () => {
       const onDisconnect = vi.fn();
-      const client = new SSEClient("http://localhost:3000", { onDisconnect });
+      const client = new SSEClient("http://localhost:3000/api", { onDisconnect });
       client.connect("s1");
       lastInstance!.triggerError();
       expect(onDisconnect).toHaveBeenCalledOnce();
@@ -250,7 +250,7 @@ describe("SSEClient", () => {
 
   describe("heartbeat monitoring", () => {
     it("starts heartbeat monitor on connection open", () => {
-      const client = new SSEClient("http://localhost:3000", {});
+      const client = new SSEClient("http://localhost:3000/api", {});
       client.connect("s1");
       lastInstance!.triggerOpen();
       const prevInstance = lastInstance;
@@ -266,7 +266,7 @@ describe("SSEClient", () => {
     });
 
     it("resets heartbeat timer when an event is received", () => {
-      const client = new SSEClient("http://localhost:3000", {});
+      const client = new SSEClient("http://localhost:3000/api", {});
       client.connect("s1");
       lastInstance!.triggerOpen();
       const prevInstance = lastInstance;
@@ -286,7 +286,7 @@ describe("SSEClient", () => {
     });
 
     it("resets heartbeat timer on heartbeat event", () => {
-      const client = new SSEClient("http://localhost:3000", {});
+      const client = new SSEClient("http://localhost:3000/api", {});
       client.connect("s1");
       lastInstance!.triggerOpen();
       const prevInstance = lastInstance;
@@ -305,7 +305,7 @@ describe("SSEClient", () => {
 
   describe("disconnect()", () => {
     it("closes the EventSource", () => {
-      const client = new SSEClient("http://localhost:3000", {});
+      const client = new SSEClient("http://localhost:3000/api", {});
       client.connect("s1");
       const inst = lastInstance!;
       client.disconnect();
@@ -313,7 +313,7 @@ describe("SSEClient", () => {
     });
 
     it("stops automatic reconnection", () => {
-      const client = new SSEClient("http://localhost:3000", {});
+      const client = new SSEClient("http://localhost:3000/api", {});
       client.connect("s1");
       const prevInstance = lastInstance;
 
@@ -326,7 +326,7 @@ describe("SSEClient", () => {
     });
 
     it("clears heartbeat timer", () => {
-      const client = new SSEClient("http://localhost:3000", {});
+      const client = new SSEClient("http://localhost:3000/api", {});
       client.connect("s1");
       lastInstance!.triggerOpen();
       client.disconnect();
