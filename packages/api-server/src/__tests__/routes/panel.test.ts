@@ -25,6 +25,10 @@ const mockChapterRead = vi.fn();
 const mockChapterListVersions = vi.fn();
 const mockKnowledgeList = vi.fn();
 const mockProjectRead = vi.fn();
+const mockReviewList = vi.fn();
+const mockReviewReadByChapter = vi.fn();
+const mockAnalysisList = vi.fn();
+const mockAnalysisTrend = vi.fn();
 
 vi.mock("@moran/core/services", () => ({
   authService: {
@@ -61,6 +65,14 @@ vi.mock("@moran/core/services", () => ({
   },
   projectService: {
     read: (...args: unknown[]) => mockProjectRead(...args),
+  },
+  reviewService: {
+    list: (...args: unknown[]) => mockReviewList(...args),
+    readByChapter: (...args: unknown[]) => mockReviewReadByChapter(...args),
+  },
+  analysisService: {
+    list: (...args: unknown[]) => mockAnalysisList(...args),
+    trend: (...args: unknown[]) => mockAnalysisTrend(...args),
   },
 }));
 
@@ -457,53 +469,147 @@ describe("GET /api/projects/:id/chapters/:num/versions", () => {
   });
 });
 
-// ── Reviews (stub) ───────────────────────────────────────────────────────────
+// ── Reviews ──────────────────────────────────────────────────────────────────
 
 describe("GET /api/projects/:id/reviews", () => {
-  it("returns empty array stub", async () => {
+  it("returns review list on success", async () => {
+    const reviews = [{ id: "r1", title: "Review Ch.1 Round 1" }];
+    mockReviewList.mockResolvedValue({ ok: true, data: reviews });
+
     const res = await get("/api/projects/proj-1/reviews");
     expect(res.status).toBe(200);
     const body = await res.json();
     expect(body.ok).toBe(true);
-    expect(body.data).toEqual([]);
+    expect(body.data).toEqual(reviews);
+    expect(mockReviewList).toHaveBeenCalledWith("proj-1");
+  });
+
+  it("returns 500 when service fails", async () => {
+    mockReviewList.mockResolvedValue({
+      ok: false,
+      error: { code: "DB_ERROR", message: "db down" },
+    });
+
+    const res = await get("/api/projects/proj-1/reviews");
+    expect(res.status).toBe(500);
+    const body = await res.json();
+    expect(body.ok).toBe(false);
+    expect(body.error.code).toBe("DB_ERROR");
   });
 });
 
 describe("GET /api/projects/:id/reviews/:chapterNum", () => {
-  it("returns stub with empty rounds", async () => {
+  it("returns rounds for chapter on success", async () => {
+    const rounds = [
+      { id: "r1", title: "Review Ch.1 Round 1" },
+      { id: "r2", title: "Review Ch.1 Round 2" },
+    ];
+    mockReviewReadByChapter.mockResolvedValue({ ok: true, data: rounds });
+
     const res = await get("/api/projects/proj-1/reviews/1");
     expect(res.status).toBe(200);
     const body = await res.json();
-    expect(body.data).toEqual({ rounds: [] });
+    expect(body.ok).toBe(true);
+    expect(body.data).toEqual(rounds);
+    expect(mockReviewReadByChapter).toHaveBeenCalledWith("proj-1", 1);
+  });
+
+  it("returns 500 when service fails", async () => {
+    mockReviewReadByChapter.mockResolvedValue({
+      ok: false,
+      error: { code: "DB_ERROR", message: "error" },
+    });
+
+    const res = await get("/api/projects/proj-1/reviews/1");
+    expect(res.status).toBe(500);
+  });
+
+  it("returns 400 for non-numeric chapterNum", async () => {
+    const res = await get("/api/projects/proj-1/reviews/abc");
+    expect(res.status).toBe(400);
+    const body = await res.json();
+    expect(body.error.code).toBe("VALIDATION_ERROR");
   });
 });
 
-// ── Analysis (stub) ──────────────────────────────────────────────────────────
+// ── Analysis ─────────────────────────────────────────────────────────────────
 
 describe("GET /api/projects/:id/analysis", () => {
-  it("returns empty array stub", async () => {
+  it("returns analysis list on success", async () => {
+    const analyses = [{ id: "a1", title: "Analysis chapter 1-1" }];
+    mockAnalysisList.mockResolvedValue({ ok: true, data: analyses });
+
     const res = await get("/api/projects/proj-1/analysis");
     expect(res.status).toBe(200);
     const body = await res.json();
-    expect(body.data).toEqual([]);
+    expect(body.ok).toBe(true);
+    expect(body.data).toEqual(analyses);
+    expect(mockAnalysisList).toHaveBeenCalledWith("proj-1", undefined);
+  });
+
+  it("passes ?scope= filter to service", async () => {
+    mockAnalysisList.mockResolvedValue({ ok: true, data: [] });
+
+    await get("/api/projects/proj-1/analysis?scope=chapter");
+    expect(mockAnalysisList).toHaveBeenCalledWith("proj-1", { scope: "chapter" });
+  });
+
+  it("returns 500 when service fails", async () => {
+    mockAnalysisList.mockResolvedValue({
+      ok: false,
+      error: { code: "DB_ERROR", message: "error" },
+    });
+
+    const res = await get("/api/projects/proj-1/analysis");
+    expect(res.status).toBe(500);
+    const body = await res.json();
+    expect(body.ok).toBe(false);
+    expect(body.error.code).toBe("DB_ERROR");
   });
 });
 
 describe("GET /api/projects/:id/analysis/trend", () => {
-  it("returns empty trend array stub", async () => {
+  it("returns trend data on success", async () => {
+    const trend = [{ id: "t1", scope: "chapter", overall: 82, createdAt: new Date().toISOString() }];
+    mockAnalysisTrend.mockResolvedValue({ ok: true, data: trend });
+
     const res = await get("/api/projects/proj-1/analysis/trend");
     expect(res.status).toBe(200);
     const body = await res.json();
-    expect(body.data).toEqual([]);
+    expect(body.ok).toBe(true);
+    expect(body.data).toEqual(trend);
+    expect(mockAnalysisTrend).toHaveBeenCalledWith("proj-1");
+  });
+
+  it("returns 500 when service fails", async () => {
+    mockAnalysisTrend.mockResolvedValue({
+      ok: false,
+      error: { code: "DB_ERROR", message: "error" },
+    });
+
+    const res = await get("/api/projects/proj-1/analysis/trend");
+    expect(res.status).toBe(500);
   });
 });
 
 describe("GET /api/projects/:id/analysis/:chapterNum", () => {
-  it("returns stub with empty dimensions", async () => {
+  it("returns chapter-scoped analyses", async () => {
+    const analyses = [{ id: "a1", title: "Analysis chapter 1-1" }];
+    mockAnalysisList.mockResolvedValue({ ok: true, data: analyses });
+
     const res = await get("/api/projects/proj-1/analysis/1");
     expect(res.status).toBe(200);
     const body = await res.json();
-    expect(body.data).toEqual({ dimensions: [] });
+    expect(body.ok).toBe(true);
+    expect(body.data).toEqual(analyses);
+    expect(mockAnalysisList).toHaveBeenCalledWith("proj-1", { scope: "chapter" });
+  });
+
+  it("returns 400 for non-numeric chapterNum", async () => {
+    const res = await get("/api/projects/proj-1/analysis/abc");
+    expect(res.status).toBe(400);
+    const body = await res.json();
+    expect(body.error.code).toBe("VALIDATION_ERROR");
   });
 });
 

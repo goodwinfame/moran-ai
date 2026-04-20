@@ -25,4 +25,8 @@ export * as gateService from "./gate.service.js";
 export * as costService from "./cost.service.js";
 export * as logService from "./log.service.js";
 export * as exportService from "./export.service.js";
+export * as reviewService from "./review.service.js";
+export * as analysisService from "./analysis.service.js";
+export * as contextService from "./context.service.js";
+export * as consistencyService from "./consistency.service.js";
 export { withLogging } from "./with-logging.js";

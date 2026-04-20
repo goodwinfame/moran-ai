@@ -8,6 +8,9 @@ const { mockWorldCreateSetting, mockWorldReadSetting, mockWorldListSettings, moc
   mockWorldUpdateSetting: vi.fn(),
   mockWorldRemoveSetting: vi.fn(),
 }));
+const { mockConsistencyCheck } = vi.hoisted(() => ({
+  mockConsistencyCheck: vi.fn(),
+}));
 vi.mock("@moran/core/services", () => ({
   worldService: {
     createSetting: mockWorldCreateSetting,
@@ -15,6 +18,9 @@ vi.mock("@moran/core/services", () => ({
     listSettings: mockWorldListSettings,
     updateSetting: mockWorldUpdateSetting,
     removeSetting: mockWorldRemoveSetting,
+  },
+  consistencyService: {
+    check: mockConsistencyCheck,
   },
 }));
 
@@ -296,14 +302,54 @@ describe("world tools", () => {
   });
 
   describe("world_check", () => {
-    it("returns NOT_IMPLEMENTED", async () => {
+    it("calls consistencyService.check and returns report", async () => {
+      const report = {
+        passed: true,
+        issues: [],
+        summary: { totalSettings: 5, checkedRules: 4, issueCount: 0 },
+      };
+      mockConsistencyCheck.mockResolvedValue({ ok: true, data: report });
+
+      const result = await handlers.get("world_check")!({
+        projectId: "00000000-0000-0000-0000-000000000001",
+      });
+      const payload = parseResponse(result);
+
+      expect(payload.ok).toBe(true);
+      expect(payload.data).toEqual(report);
+      expect(mockConsistencyCheck).toHaveBeenCalledWith("00000000-0000-0000-0000-000000000001");
+    });
+
+    it("returns error when consistency check service fails", async () => {
+      mockConsistencyCheck.mockResolvedValue({
+        ok: false,
+        error: { code: "DB_ERROR", message: "数据库错误" },
+      });
+
       const result = await handlers.get("world_check")!({
         projectId: "00000000-0000-0000-0000-000000000001",
       });
       const payload = parseResponse(result);
 
       expect(payload.ok).toBe(false);
-      expect(payload.error?.code).toBe("NOT_IMPLEMENTED");
+      expect(payload.error?.code).toBe("DB_ERROR");
+    });
+
+    it("returns passed=false when critical issues found", async () => {
+      const report = {
+        passed: false,
+        issues: [{ type: "contradiction", severity: "critical", description: "冲突", sources: ["id-1"], suggestion: "修复" }],
+        summary: { totalSettings: 3, checkedRules: 4, issueCount: 1 },
+      };
+      mockConsistencyCheck.mockResolvedValue({ ok: true, data: report });
+
+      const result = await handlers.get("world_check")!({
+        projectId: "00000000-0000-0000-0000-000000000001",
+      });
+      const payload = parseResponse(result);
+
+      expect(payload.ok).toBe(true);
+      expect((payload.data as Record<string, unknown>).passed).toBe(false);
     });
   });
 

@@ -5,7 +5,7 @@
  * - world_read:   读取世界观条目
  * - world_update: 更新世界观条目
  * - world_delete: 删除世界观条目
- * - world_check:  世界观一致性检查（stub — 需要 AI 分析）
+ * - world_check:  世界观一致性检查（规则引擎检测）
  * - world_patch:  局部编辑世界设定内容（find/replace）
  *
  * Spec type → DB section 映射:
@@ -17,7 +17,7 @@
 
 import type { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { z } from "zod";
-import { worldService } from "@moran/core/services";
+import { worldService, consistencyService } from "@moran/core/services";
 import { ok, fail, fromService } from "../utils/response.js";
 import { applyPatches } from "../utils/patch.js";
 import { checkPrerequisites, toGateDetails } from "../gates/checker.js";
@@ -109,9 +109,9 @@ export function registerWorldTools(server: McpServer) {
     inputSchema: {
       projectId: z.string().uuid(),
     },
-  }, async () => {
-    // Stub — 一致性检查需要 AI 分析，当前阶段不实现
-    return fail("NOT_IMPLEMENTED", "世界观一致性检查尚未实现，请等待后续版本");
+  }, async ({ projectId }) => {
+    const result = await consistencyService.check(projectId);
+    return fromService(result);
   });
 
   server.registerTool("world_patch", {
