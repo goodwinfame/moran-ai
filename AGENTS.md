@@ -321,6 +321,8 @@ DB 枚举 `characterRoleEnum`（`packages/core/src/db/schema/enums.ts`）缺少 
 | SDD 基础设施 | ✅ 完成 | specs/ 目录、开发流程建立 |
 | MCP 工具规范 | ✅ 完成 | specs/mcp-tools/SPEC.md + S6 重写（18 域 54 工具） |
 | 文档一致性修复 | ✅ 完成 | V2 文档间不一致已全部修复 |
-| V1 代码清理 | ⏳ 待开始 | 删除无用代码，保留基础设施 |
+| V1 代码清理 | ✅ 完成 | `packages/agents/` 删除，V1 无用代码清理（`2bbfc52`） |
 | Spec 编写 | ✅ 完成 | 10 个模块全部完成（含 mcp-tools） |
-| 分批实现 | ⏳ 待开始 | 按 Spec 实现 + 测试 |
+| 分批实现 | ✅ 完成 | Phase 0-13 全部完成，1330 tests，typecheck clean |
+| 综合审计 | ✅ 完成 | 5 域审计 + 3 gap 修复（`ec0a768`） |
+| E2E 测试 | ⏳ 待开始 | Playwright 端到端测试 |

@@ -1,72 +1,111 @@
 import { test, expect } from "@playwright/test";
+import {
+  mockProjectListEmpty,
+  mockProjectList,
+  SAMPLE_PROJECT,
+} from "./helpers/mock-api";
 
 /**
- * 首页测试
- * 覆盖：空状态 UI、有项目时的卡片展示、按项目阶段跳转逻辑
- * 依据：product-design.md §5.1 首页（项目启动台）
+ * Home Page E2E Tests (V2)
+ *
+ * Tests cover the project-list page at `/`.
+ * Route is public (middleware does not protect `/`).
+ *
+ * Key V2 UI facts:
+ * - Header brand: "M" icon div + "墨染 MoRan" span
+ * - UserMenu: Avatar with fallback "U"
+ * - Empty state heading: "还没有项目"
+ * - Empty state subtitle: "告诉墨衡你想写什么故事吧"
+ * - Three example prompt buttons
+ * - With projects: "我的项目" heading + card grid
+ * - Inline chat input placeholder: "告诉墨衡你想写什么故事..."
  */
-test.describe("Homepage", () => {
-  // --- 空状态（API 不可用 → projects=[]）---
+test.describe("Home Page", () => {
+  // ── Brand identity ──────────────────────────────────────────────────────────
 
-  test("loads and shows logo with brand text", async ({ page }) => {
+  test("displays brand logo and text", async ({ page }) => {
+    // Mock projects so the page settles quickly to a known state
+    await mockProjectListEmpty(page);
     await page.goto("/");
-    await expect(page.locator("header")).toBeVisible();
-    await expect(page.getByText("墨染")).toBeVisible();
-    await expect(page.getByText("MORAN")).toBeVisible();
-  });
 
-  test("header has help button and user avatar", async ({ page }) => {
-    await page.goto("/");
-    await expect(page.locator("header button")).toBeVisible();
-    // Avatar uses rounded-full div containing "U"
+    // "M" brand icon lives inside a rounded-md div in the header
     await expect(
-      page.locator("header .rounded-full").getByText("U", { exact: true }),
+      page.locator("header").getByText("M", { exact: true }),
+    ).toBeVisible();
+
+    // Full brand name in header
+    await expect(
+      page.locator("header").getByText("墨染 MoRan"),
     ).toBeVisible();
   });
 
-  test("shows empty state hero when no projects", async ({ page }) => {
-    // Intercept API to guarantee empty project list (parallel tests may create projects)
-    await page.route("**/api/projects", (route) =>
-      route.fulfill({
-        contentType: "application/json",
-        body: JSON.stringify({ projects: [], total: 0 }),
-      }),
-    );
+  test("renders user menu in header", async ({ page }) => {
+    await mockProjectListEmpty(page);
     await page.goto("/");
-    await expect(page.getByText("开始你的创作")).toBeVisible({ timeout: 10_000 });
+
+    // UserMenu renders Avatar with AvatarFallback "U" inside a button in the header
     await expect(
-      page.getByText(/每一部伟大的作品都始于一个灵感/),
+      page.locator("header").getByRole("button", { name: /U/i }),
     ).toBeVisible();
   });
 
-  test("empty state has 'create new project' link pointing to /projects/new", async ({ page }) => {
-    await page.route("**/api/projects", (route) =>
-      route.fulfill({
-        contentType: "application/json",
-        body: JSON.stringify({ projects: [], total: 0 }),
-      }),
-    );
+  // ── Empty state ─────────────────────────────────────────────────────────────
+
+  test("shows empty state when no projects", async ({ page }) => {
+    await mockProjectListEmpty(page);
     await page.goto("/");
-    await expect(page.getByText("开始你的创作")).toBeVisible({ timeout: 10_000 });
-    const link = page.getByRole("link", { name: /创建新项目/ });
-    await expect(link).toHaveAttribute("href", "/projects/new");
+
+    // Wait for the empty state heading to appear (projects loaded, list empty)
+    await expect(page.getByRole("heading", { name: "还没有项目" })).toBeVisible({
+      timeout: 10_000,
+    });
+    await expect(page.getByText("告诉墨衡你想写什么故事吧")).toBeVisible();
   });
 
-  // --- 有项目时（依赖首页 ProjectList 组件逻辑）---
-  // 这些测试访问的 UI 在 API 不可用时不会出现，
-  // 但我们可以通过访问有项目上下文的布局页面来间接验证跳转逻辑。
+  test("shows example prompts in empty state", async ({ page }) => {
+    await mockProjectListEmpty(page);
+    await page.goto("/");
 
-  test("project in 'active' status links to /write panel", async ({ page }) => {
-    // 访问写作阶段路由，验证项目卡片的目标 href 格式与 page.tsx 实现一致
-    // page.tsx: status==='active' → `/projects/${id}/write`
-    await page.goto("/projects/test-active/write");
-    // 只要不 404 且 layout 渲染即可（项目不存在时页面仍渲染 shell）
-    await expect(page.locator("header")).toBeVisible();
+    await expect(page.getByRole("heading", { name: "还没有项目" })).toBeVisible({
+      timeout: 10_000,
+    });
+
+    // Three example prompt buttons
+    await expect(
+      page.getByRole("button", { name: "我想写一本赛博朋克修仙小说" }),
+    ).toBeVisible();
+    await expect(
+      page.getByRole("button", { name: "来一本末日废土题材的" }),
+    ).toBeVisible();
+    await expect(
+      page.getByRole("button", { name: "帮我续写上次的故事" }),
+    ).toBeVisible();
   });
 
-  test("project in prep status links to corresponding prep step", async ({ page }) => {
-    // page.tsx: status==='intent' → `/projects/${id}/prep/intent`
-    await page.goto("/projects/test-prep/prep/intent");
-    await expect(page.locator("header")).toBeVisible();
+  // ── With projects ───────────────────────────────────────────────────────────
+
+  test("displays project cards when projects exist", async ({ page }) => {
+    await mockProjectList(page, [SAMPLE_PROJECT]);
+    await page.goto("/");
+
+    // "我的项目" section heading appears when list is non-empty
+    await expect(
+      page.getByRole("heading", { name: "我的项目" }),
+    ).toBeVisible({ timeout: 10_000 });
+
+    // The sample project card title should be visible
+    await expect(page.getByText(SAMPLE_PROJECT.title)).toBeVisible();
+  });
+
+  // ── Inline chat input ───────────────────────────────────────────────────────
+
+  test("shows inline chat input with placeholder", async ({ page }) => {
+    await mockProjectListEmpty(page);
+    await page.goto("/");
+
+    // The sticky-bottom inline chat input is always rendered regardless of project state
+    await expect(
+      page.getByPlaceholder("告诉墨衡你想写什么故事..."),
+    ).toBeVisible({ timeout: 10_000 });
   });
 });
