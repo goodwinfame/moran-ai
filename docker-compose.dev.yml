@@ -23,10 +23,14 @@ services:
     ports:
       - "4096:4096"
     volumes:
-      - ${USERPROFILE}/.local/share/opencode/auth.json:/root/.local/share/opencode/auth.json:ro
-      - ./agents:/app/agents:ro
       - ./opencode.json:/app/opencode.json:ro
+      - ./agents:/app/agents:ro
       - ./packages/mcp-server:/app/packages/mcp-server:ro
+    environment:
+      - ANTHROPIC_API_KEY=${ANTHROPIC_API_KEY}
+      - OPENAI_API_KEY=${OPENAI_API_KEY:-}
+      - MOONSHOT_API_KEY=${MOONSHOT_API_KEY:-}
+      - DATABASE_URL=${DATABASE_URL}
     restart: unless-stopped
     healthcheck:
       test: ["CMD-SHELL", "wget --no-verbose --tries=1 --spider http://127.0.0.1:4096/global/health || exit 1"]

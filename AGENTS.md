@@ -111,16 +111,15 @@ packages/
 
 ---
 
-## 5. Agent 体系（10 个）
+## 5. Agent 体系（18 个：9 核心 + 9 子写手）
 
-### 核心 Agent（5 个）
+### 核心 Agent（4 个）
 
 | Agent | 英文 | 职责 | 模型 |
 |-------|------|------|------|
 | 墨衡 | moheng | 唯一用户入口，全流程协调器 | Claude Sonnet 4 |
 | 灵犀 | lingxi | 灵感碰撞（发散→聚焦→结晶） | Claude Sonnet 4 (temp 0.9) |
 | 匠心 | jiangxin | 世界观/角色/结构设计 | Claude Sonnet 4 |
-| 执笔 | zhibi | 章节写作（9 个子写手风格） | 按风格切换模型 |
 | 明镜 | mingjing | 四轮质量审校 | Claude Sonnet 4 |
 
 ### 支援 Agent（3 个）
@@ -138,7 +137,11 @@ packages/
 | 书虫 | shuchong | 读者视角反馈 |
 | 点睛 | dianjing | 标题/简介生成 |
 
-### 执笔子写手（纯文风预设）
+### 执笔子写手（9 个独立 Agent）
+
+> **设计变更（v2-rewrite）**：砍掉执笔（zhibi）中间层。墨衡通过 `style_read` 读取项目文风配置，直接路由到对应子写手。子写手是独立 Agent（每个绑定不同模型），通过 `agents/writers/*.md` 定义。
+>
+> 执笔的写作方法论保留在 `agents/writers/_base.md`，由构建脚本（`pnpm build:prompts`）注入各子写手 prompt。
 
 子写手定义**文风**（prose voice），不绑定题材。题材技法作为知识库条目（category='genre'）独立存在，由 `context_assemble` 在写作时按需加载。墨衡根据项目题材自动组合文风+题材技法。
 
@@ -241,6 +244,14 @@ DB 枚举 `characterRoleEnum`（`packages/core/src/db/schema/enums.ts`）缺少 
 - Agent 间调度：`SubtaskPart`
 - 消息持久化：`session.messages()`
 
+### Provider 配置
+
+- 认证方式：API Key 环境变量（不使用 auth.json / GitHub Copilot OAuth）
+- `anthropic`、`openai`：OpenCode 内置 provider，通过 `ANTHROPIC_API_KEY`、`OPENAI_API_KEY` 环境变量自动识别
+- `moonshotai`：自定义 provider，在 `opencode.json` 中显式配置 endpoint
+- `llamacpp`：本地模型 provider，通过 `host.docker.internal` 访问宿主机 LM Studio
+- 详见 `specs/opencode-config/DESIGN.md`
+
 ---
 
 ## 9. 代码规范
@@ -301,8 +312,8 @@ DB 枚举 `characterRoleEnum`（`packages/core/src/db/schema/enums.ts`）缺少 
 | 问题 | 影响文件 | 状态 |
 |------|---------|------|
 | 心理模型写成 4 维 | v2-s1, v2-s3, v2-s5, v2-s9 | ✅ 已全部使用五维 GHOST/WOUND/LIE/WANT/NEED |
-| Agent 数量不一致 | v2-s0 | ✅ 已统一为 10 个 (5核心+3支援+2可选) |
-| Agent 列表不完整 | v2-s2, v2-s10 | ✅ 已补全所有 10 个 Agent |
+| Agent 数量不一致 | v2-s0 | ✅ 已统一为 18 个 (4核心+3支援+2可选+9子写手) |
+| Agent 列表不完整 | v2-s2, v2-s10 | ✅ 已补全所有 18 个 Agent |
 | v2-s2 server→api-server | v2-s2 line 235 | ✅ 已修正为 api-server |
 
 ---
@@ -325,4 +336,5 @@ DB 枚举 `characterRoleEnum`（`packages/core/src/db/schema/enums.ts`）缺少 
 | Spec 编写 | ✅ 完成 | 10 个模块全部完成（含 mcp-tools） |
 | 分批实现 | ✅ 完成 | Phase 0-13 全部完成，1330 tests，typecheck clean |
 | 综合审计 | ✅ 完成 | 5 域审计 + 3 gap 修复（`ec0a768`） |
+| OpenCode 配置管理 | ✅ 完成 | Provider + Agent 注册 + 子写手 Prompt 构建 |
 | E2E 测试 | ⏳ 待开始 | Playwright 端到端测试 |

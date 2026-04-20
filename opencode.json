@@ -1,4 +1,28 @@
 {
+  "provider": {
+    "moonshotai": {
+      "api": "https://api.moonshot.cn/v1",
+      "options": {
+        "baseURL": "https://api.moonshot.cn/v1"
+      }
+    },
+    "llamacpp": {
+      "npm": "@ai-sdk/openai-compatible",
+      "name": "LM Studio (local)",
+      "options": {
+        "baseURL": "http://host.docker.internal:1234/v1"
+      },
+      "models": {
+        "gemma-4-27b": {
+          "context": 120000,
+          "output": 8192,
+          "tool_call": true,
+          "reasoning": true
+        }
+      }
+    }
+  },
+
   "mcpServers": {
     "moran-mcp": {
       "command": "node",
