@@ -230,4 +230,18 @@ describe("SSE store wiring", () => {
       expect(usePanelStore.getState().visibleTabs).toContain("brainstorm");
     });
   });
+
+  describe("message_complete event", () => {
+    it("calls finalizeStream on chat store", () => {
+      // Set up some streaming state first
+      useChatStore.getState().appendStreamText("hello world");
+      expect(useChatStore.getState().isStreaming).toBe(true);
+
+      const handlers = connectAndGetHandlers();
+      handlers["message_complete"]?.({});
+
+      expect(useChatStore.getState().isStreaming).toBe(false);
+      expect(useChatStore.getState().streamingText).toBe("");
+    });
+  });
 });

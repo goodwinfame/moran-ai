@@ -26,6 +26,7 @@ type Variables = { userId: string };
 const sendBodySchema = z.object({
   projectId: z.string().nullable(),
   message: z.string(),
+  agent: z.string().optional(),
   attachments: z.array(z.string()).optional(),
 });
 
@@ -42,7 +43,7 @@ const historyQuerySchema = z.object({
 });
 
 const sessionQuerySchema = z.object({
-  projectId: z.string(),
+  projectId: z.string().nullable().default(null),
 });
 
 // ── Route factory ──────────────────────────────────────────────────────────
@@ -56,14 +57,15 @@ export function createChatRoutes() {
    * Fire-and-forget: enqueues the message and immediately returns messageId.
    */
   chat.post("/send", zValidator("json", sendBodySchema), async (c) => {
-    const { projectId, message } = c.req.valid("json");
+    const { projectId, message, agent } = c.req.valid("json");
     const userId = c.get("userId");
     const effectiveProjectId = projectId ?? "__global__";
+    const effectiveAgent = agent ?? "moheng";
 
     try {
       const sessionId = await sessionManager.getOrCreateSession(userId, effectiveProjectId);
-      const result = await sessionManager.sendMessage(sessionId, message);
-      return ok(c, { messageId: result.messageId });
+      const result = await sessionManager.sendMessage(sessionId, message, { agent: effectiveAgent });
+      return ok(c, { messageId: result.messageId, sessionId });
     } catch (err) {
       const msg = err instanceof Error ? err.message : "Failed to send message";
       return fail(c, "INTERNAL_ERROR", msg, 500);
@@ -156,8 +158,9 @@ export function createChatRoutes() {
   chat.get("/session", zValidator("query", sessionQuerySchema), async (c) => {
     const { projectId } = c.req.valid("query");
     const userId = c.get("userId");
+    const effectiveProjectId = projectId ?? "__global__";
     try {
-      const sessionId = await sessionManager.getOrCreateSession(userId, projectId);
+      const sessionId = await sessionManager.getOrCreateSession(userId, effectiveProjectId);
       return ok(c, { sessionId });
     } catch (err) {
       const msg = err instanceof Error ? err.message : "Failed to get session";

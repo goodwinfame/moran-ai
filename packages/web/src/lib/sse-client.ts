@@ -3,7 +3,7 @@
  * T4: packages/web/src/lib/sse-client.ts
  */
 
-/** All 14 SSE event types: 8 general + 3 chapter + 3 brainstorm */
+/** All 15 SSE event types: 9 general + 3 chapter + 3 brainstorm */
 export const SSE_EVENT_TYPES = [
   "text",
   "tool_call",
@@ -13,6 +13,7 @@ export const SSE_EVENT_TYPES = [
   "subtask_end",
   "error",
   "interaction_mode",
+  "message_complete",
   "chapter.start",
   "chapter.token",
   "chapter.complete",

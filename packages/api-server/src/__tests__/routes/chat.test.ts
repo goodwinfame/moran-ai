@@ -125,7 +125,8 @@ describe("POST /api/chat/send", () => {
     expect(body.data.messageId).toBe("msg-123");
 
     expect(mockGetOrCreateSession).toHaveBeenCalledWith("user-1", "proj-1");
-    expect(mockSendMessage).toHaveBeenCalledWith("session-abc", "帮我写第一章");
+    expect(mockSendMessage).toHaveBeenCalledWith("session-abc", "帮我写第一章", { agent: "moheng" });
+    expect(body.data.sessionId).toBe("session-abc");
   });
 
   it("accepts null projectId for global/inline chat", async () => {
@@ -144,7 +145,23 @@ describe("POST /api/chat/send", () => {
     expect(body.data.messageId).toBe("msg-789");
 
     expect(mockGetOrCreateSession).toHaveBeenCalledWith("user-1", "__global__");
-    expect(mockSendMessage).toHaveBeenCalledWith("session-global", "你好墨衡");
+    expect(mockSendMessage).toHaveBeenCalledWith("session-global", "你好墨衡", { agent: "moheng" });
+    expect(body.data.sessionId).toBe("session-global");
+  });
+
+  it("sends with custom agent when specified", async () => {
+    authenticatedSession();
+    mockGetOrCreateSession.mockResolvedValue("session-abc");
+    mockSendMessage.mockResolvedValue({ messageId: "msg-agent" });
+
+    const res = await jsonPost("/api/chat/send", {
+      projectId: "proj-1",
+      message: "写第一章",
+      agent: "yunmo",
+    });
+
+    expect(res.status).toBe(200);
+    expect(mockSendMessage).toHaveBeenCalledWith("session-abc", "写第一章", { agent: "yunmo" });
   });
 
   it("accepts optional attachments field", async () => {
@@ -232,13 +249,17 @@ describe("GET /api/chat/session", () => {
     expect(mockGetOrCreateSession).toHaveBeenCalledWith("user-1", "proj-1");
   });
 
-  it("returns 400 when projectId is missing", async () => {
+  it("defaults to __global__ when projectId is omitted", async () => {
     authenticatedSession();
+    mockGetOrCreateSession.mockResolvedValue("session-default");
 
     const res = await jsonGet("/api/chat/session");
 
-    expect(res.status).toBe(400);
-    expect(mockGetOrCreateSession).not.toHaveBeenCalled();
+    expect(res.status).toBe(200);
+    const body = await res.json();
+    expect(body.ok).toBe(true);
+    expect(body.data.sessionId).toBe("session-default");
+    expect(mockGetOrCreateSession).toHaveBeenCalledWith("user-1", "__global__");
   });
 
   it("returns 500 when session creation fails", async () => {
@@ -350,13 +371,17 @@ describe("GET /api/chat/session", () => {
     expect(mockGetOrCreateSession).toHaveBeenCalledWith("user-1", "proj-1");
   });
 
-  it("returns 400 when projectId is missing", async () => {
+  it("defaults to __global__ when projectId is omitted", async () => {
     authenticatedSession();
+    mockGetOrCreateSession.mockResolvedValue("session-default");
 
     const res = await jsonGet("/api/chat/session");
 
-    expect(res.status).toBe(400);
-    expect(mockGetOrCreateSession).not.toHaveBeenCalled();
+    expect(res.status).toBe(200);
+    const body = await res.json();
+    expect(body.ok).toBe(true);
+    expect(body.data.sessionId).toBe("session-default");
+    expect(mockGetOrCreateSession).toHaveBeenCalledWith("user-1", "__global__");
   });
 
   it("returns 500 when session creation throws", async () => {

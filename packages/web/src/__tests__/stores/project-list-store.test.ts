@@ -4,6 +4,20 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import { useProjectListStore, type ProjectItem } from "@/stores/project-list-store";
 
+// ── Mock @/lib/sse-client ──────────────────────────────────────────────────────
+
+const mockSSEConnect = vi.fn();
+const mockSSEDisconnect = vi.fn();
+let lastSSEHandlers: Record<string, (data: Record<string, unknown>) => void> = {};
+
+vi.mock("@/lib/sse-client", () => {
+  const MockSSEClient = vi.fn().mockImplementation((_baseUrl: string, handlers: Record<string, (data: Record<string, unknown>) => void>) => {
+    lastSSEHandlers = handlers;
+    return { connect: mockSSEConnect, disconnect: mockSSEDisconnect };
+  });
+  return { SSEClient: MockSSEClient, SSE_EVENT_TYPES: [] };
+});
+
 // ── Mock @/lib/api ─────────────────────────────────────────────────────────────
 
 vi.mock("@/lib/api", () => ({
@@ -40,6 +54,7 @@ function resetStore() {
     isLoading: false,
     isSending: false,
     inlineMessages: [],
+    streamingReply: "",
   });
 }
 
@@ -48,6 +63,7 @@ function resetStore() {
 beforeEach(() => {
   vi.clearAllMocks();
   resetStore();
+  lastSSEHandlers = {};
 });
 
 // ── Tests ──────────────────────────────────────────────────────────────────────
@@ -292,78 +308,153 @@ describe("useProjectListStore", () => {
 
   describe("sendInlineMessage()", () => {
     it("adds user message immediately before API call", async () => {
-      let resolveIt!: (v: unknown) => void;
-      const promise = new Promise((res) => { resolveIt = res; });
-      vi.mocked(api.post).mockReturnValueOnce(promise as ReturnType<typeof api.post>);
+      let resolvePost!: (v: unknown) => void;
+      const postPromise = new Promise((res) => { resolvePost = res; });
+      vi.mocked(api.post).mockReturnValueOnce(postPromise as ReturnType<typeof api.post>);
 
       const sendPromise = useProjectListStore.getState().sendInlineMessage("你好");
-      // Check that user message was added before awaiting
+
       expect(useProjectListStore.getState().inlineMessages[0]).toEqual({
         role: "user",
         content: "你好",
       });
       expect(useProjectListStore.getState().isSending).toBe(true);
 
-      resolveIt({ ok: true, data: { text: "你好！" } });
+      // Resolve post and trigger SSE completion
+      resolvePost({ ok: true, data: { messageId: "msg-1", sessionId: "sess-1" } });
+      // Wait a tick for post to resolve and SSE to connect
+      await new Promise((r) => setTimeout(r, 10));
+      // Trigger message_complete via SSE
+      lastSSEHandlers["message_complete"]?.({});
       await sendPromise;
     });
 
-    it("adds assistant reply after API returns", async () => {
+    it("adds assistant reply after SSE message_complete", async () => {
       vi.mocked(api.post).mockResolvedValueOnce({
         ok: true,
-        data: { text: "我是墨衡" },
+        data: { messageId: "msg-1", sessionId: "sess-1" },
       });
 
-      await useProjectListStore.getState().sendInlineMessage("你好");
+      const sendPromise = useProjectListStore.getState().sendInlineMessage("你好");
+      // Wait for POST to resolve and SSE to connect
+      await new Promise((r) => setTimeout(r, 10));
+
+      // Simulate SSE text events
+      lastSSEHandlers["text"]?.({ text: "我是" });
+      lastSSEHandlers["text"]?.({ text: "墨衡" });
+      lastSSEHandlers["message_complete"]?.({});
+
+      const result = await sendPromise;
 
       const { inlineMessages } = useProjectListStore.getState();
       expect(inlineMessages).toHaveLength(2);
       expect(inlineMessages[1]).toEqual({ role: "assistant", content: "我是墨衡" });
+      expect(result).toEqual({ text: "我是墨衡" });
     });
 
-    it("returns the InlineReply from the API", async () => {
-      const reply = { text: "回复内容", action: { type: "navigate" as const, projectId: "proj-1" } };
-      vi.mocked(api.post).mockResolvedValueOnce({ ok: true, data: reply });
+    it("updates streamingReply progressively", async () => {
+      vi.mocked(api.post).mockResolvedValueOnce({
+        ok: true,
+        data: { messageId: "msg-1", sessionId: "sess-1" },
+      });
 
-      const result = await useProjectListStore.getState().sendInlineMessage("继续写");
-      expect(result).toEqual(reply);
+      const sendPromise = useProjectListStore.getState().sendInlineMessage("hi");
+      await new Promise((r) => setTimeout(r, 10));
+
+      lastSSEHandlers["text"]?.({ text: "Hello" });
+      expect(useProjectListStore.getState().streamingReply).toBe("Hello");
+
+      lastSSEHandlers["text"]?.({ text: " World" });
+      expect(useProjectListStore.getState().streamingReply).toBe("Hello World");
+
+      lastSSEHandlers["message_complete"]?.({});
+      await sendPromise;
+
+      // streamingReply cleared after completion
+      expect(useProjectListStore.getState().streamingReply).toBe("");
     });
 
-    it("sets isSending=false after completion", async () => {
-      vi.mocked(api.post).mockResolvedValueOnce({ ok: true, data: { text: "ok" } });
+    it("sets isSending=false after SSE completion", async () => {
+      vi.mocked(api.post).mockResolvedValueOnce({
+        ok: true,
+        data: { messageId: "msg-1", sessionId: "sess-1" },
+      });
 
-      await useProjectListStore.getState().sendInlineMessage("msg");
+      const sendPromise = useProjectListStore.getState().sendInlineMessage("msg");
+      await new Promise((r) => setTimeout(r, 10));
+      lastSSEHandlers["message_complete"]?.({});
+      await sendPromise;
+
       expect(useProjectListStore.getState().isSending).toBe(false);
     });
 
-    it("trims messages to max 6 (3 rounds) when exceeded", async () => {
-      // Pre-fill with 6 messages (3 rounds)
-      useProjectListStore.setState({
-        inlineMessages: [
-          { role: "user", content: "r1q" },
-          { role: "assistant", content: "r1a" },
-          { role: "user", content: "r2q" },
-          { role: "assistant", content: "r2a" },
-          { role: "user", content: "r3q" },
-          { role: "assistant", content: "r3a" },
-        ],
+    it("sends with agent=moheng and projectId=null", async () => {
+      vi.mocked(api.post).mockResolvedValueOnce({
+        ok: true,
+        data: { messageId: "msg-1", sessionId: "sess-1" },
       });
-      vi.mocked(api.post).mockResolvedValueOnce({ ok: true, data: { text: "r4a" } });
 
-      await useProjectListStore.getState().sendInlineMessage("r4q");
+      const sendPromise = useProjectListStore.getState().sendInlineMessage("hello");
+      await new Promise((r) => setTimeout(r, 10));
+      lastSSEHandlers["message_complete"]?.({});
+      await sendPromise;
 
-      const { inlineMessages } = useProjectListStore.getState();
-      // Should have at most 6 messages (oldest pair trimmed)
-      expect(inlineMessages.length).toBeLessThanOrEqual(6);
-      // Oldest pair (r1q/r1a) should be gone
-      expect(inlineMessages.some((m) => m.content === "r1q")).toBe(false);
-      expect(inlineMessages.some((m) => m.content === "r1a")).toBe(false);
-      // Newest messages should be present
-      expect(inlineMessages.some((m) => m.content === "r4q")).toBe(true);
-      expect(inlineMessages.some((m) => m.content === "r4a")).toBe(true);
+      expect(api.post).toHaveBeenCalledWith("/api/chat/send", {
+        projectId: null,
+        message: "hello",
+        agent: "moheng",
+      });
     });
 
-    it("adds error message and returns null on failure", async () => {
+    it("connects SSE with returned sessionId", async () => {
+      vi.mocked(api.post).mockResolvedValueOnce({
+        ok: true,
+        data: { messageId: "msg-1", sessionId: "sess-xyz" },
+      });
+
+      const sendPromise = useProjectListStore.getState().sendInlineMessage("test");
+      await new Promise((r) => setTimeout(r, 10));
+      lastSSEHandlers["message_complete"]?.({});
+      await sendPromise;
+
+      expect(mockSSEConnect).toHaveBeenCalledWith("sess-xyz");
+    });
+
+    it("disconnects SSE client on completion", async () => {
+      vi.mocked(api.post).mockResolvedValueOnce({
+        ok: true,
+        data: { messageId: "msg-1", sessionId: "sess-1" },
+      });
+
+      const sendPromise = useProjectListStore.getState().sendInlineMessage("msg");
+      await new Promise((r) => setTimeout(r, 10));
+      lastSSEHandlers["message_complete"]?.({});
+      await sendPromise;
+
+      expect(mockSSEDisconnect).toHaveBeenCalled();
+    });
+
+    it("handles SSE error event", async () => {
+      vi.mocked(api.post).mockResolvedValueOnce({
+        ok: true,
+        data: { messageId: "msg-1", sessionId: "sess-1" },
+      });
+
+      const sendPromise = useProjectListStore.getState().sendInlineMessage("hello");
+      await new Promise((r) => setTimeout(r, 10));
+      lastSSEHandlers["error"]?.({ message: "模型错误" });
+
+      const result = await sendPromise;
+      expect(result).toBeNull();
+
+      const { inlineMessages, isSending } = useProjectListStore.getState();
+      expect(isSending).toBe(false);
+      const lastMsg = inlineMessages[inlineMessages.length - 1];
+      expect(lastMsg?.role).toBe("assistant");
+      expect(lastMsg?.content).toBe("模型错误");
+    });
+
+    it("adds error message and returns null on network failure", async () => {
       vi.mocked(api.post).mockRejectedValueOnce(new Error("network error"));
 
       const result = await useProjectListStore.getState().sendInlineMessage("hello");
@@ -374,6 +465,36 @@ describe("useProjectListStore", () => {
       const lastMsg = inlineMessages[inlineMessages.length - 1];
       expect(lastMsg?.role).toBe("assistant");
       expect(lastMsg?.content).toContain("网络异常");
+    });
+
+    it("trims messages to max 6 (3 rounds) when exceeded", async () => {
+      useProjectListStore.setState({
+        inlineMessages: [
+          { role: "user", content: "r1q" },
+          { role: "assistant", content: "r1a" },
+          { role: "user", content: "r2q" },
+          { role: "assistant", content: "r2a" },
+          { role: "user", content: "r3q" },
+          { role: "assistant", content: "r3a" },
+        ],
+      });
+      vi.mocked(api.post).mockResolvedValueOnce({
+        ok: true,
+        data: { messageId: "msg-1", sessionId: "sess-1" },
+      });
+
+      const sendPromise = useProjectListStore.getState().sendInlineMessage("r4q");
+      await new Promise((r) => setTimeout(r, 10));
+      lastSSEHandlers["text"]?.({ text: "r4a" });
+      lastSSEHandlers["message_complete"]?.({});
+      await sendPromise;
+
+      const { inlineMessages } = useProjectListStore.getState();
+      expect(inlineMessages.length).toBeLessThanOrEqual(6);
+      expect(inlineMessages.some((m) => m.content === "r1q")).toBe(false);
+      expect(inlineMessages.some((m) => m.content === "r1a")).toBe(false);
+      expect(inlineMessages.some((m) => m.content === "r4q")).toBe(true);
+      expect(inlineMessages.some((m) => m.content === "r4a")).toBe(true);
     });
   });
 

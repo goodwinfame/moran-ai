@@ -149,6 +149,10 @@ function createHandlers(
       }
     },
 
+    message_complete: () => {
+      useChatStore.getState().finalizeStream();
+    },
+
     // ── Chapter events ─────────────────────────────────────────────────────
     "chapter.start": (data) => {
       const chapterNumber = isNumber(data.chapterNumber) ? data.chapterNumber : 0;
