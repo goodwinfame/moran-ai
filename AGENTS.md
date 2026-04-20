@@ -338,4 +338,5 @@ DB 枚举 `characterRoleEnum`（`packages/core/src/db/schema/enums.ts`）缺少 
 | 分批实现 | ✅ 完成 | Phase 0-13 全部完成，1330 tests，typecheck clean |
 | 综合审计 | ✅ 完成 | 5 域审计 + 3 gap 修复（`ec0a768`） |
 | OpenCode 配置管理 | ✅ 完成 | Provider + Agent 注册 + 子写手 Prompt 构建 |
-| E2E 测试 | ⏳ 待开始 | Playwright 端到端测试 |
+| E2E 测试 | ✅ 完成 | Playwright 端到端测试，19/19 pass（chromium） |
+| Docker 端到端验证 | ✅ 完成 | OpenCode 容器 healthy、35 Agent 自动发现、moheng 对话成功、prompt_async 204 |

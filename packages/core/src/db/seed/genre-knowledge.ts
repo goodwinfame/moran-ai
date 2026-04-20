@@ -36,7 +36,7 @@ export async function seedGenreKnowledge(db: Database): Promise<void> {
         "和解要有代价，不能轻易化解",
       ].join("\n"),
       tags: ["romance"],
-      consumers: ["zhibi", "jiangxin"],
+      consumers: ["writer", "jiangxin"],
     },
     {
       scope: "global",
@@ -51,7 +51,7 @@ export async function seedGenreKnowledge(db: Database): Promise<void> {
         "规则要一致，不能随意改变",
       ].join("\n"),
       tags: ["fantasy"],
-      consumers: ["zhibi", "jiangxin"],
+      consumers: ["writer", "jiangxin"],
     },
     {
       scope: "global",
@@ -66,7 +66,7 @@ export async function seedGenreKnowledge(db: Database): Promise<void> {
         "结局要满足读者期待，同时有惊喜",
       ].join("\n"),
       tags: ["mystery"],
-      consumers: ["zhibi", "jiangxin"],
+      consumers: ["writer", "jiangxin"],
     },
     {
       scope: "global",
@@ -81,7 +81,7 @@ export async function seedGenreKnowledge(db: Database): Promise<void> {
         "结局要符合逻辑，不能强行解决",
       ].join("\n"),
       tags: ["scifi"],
-      consumers: ["zhibi", "jiangxin"],
+      consumers: ["writer", "jiangxin"],
     },
     {
       scope: "global",
@@ -96,7 +96,7 @@ export async function seedGenreKnowledge(db: Database): Promise<void> {
         "高潮要有冲击力，但不能过度暴力",
       ].join("\n"),
       tags: ["horror"],
-      consumers: ["zhibi", "jiangxin"],
+      consumers: ["writer", "jiangxin"],
     },
     {
       scope: "global",
@@ -111,7 +111,7 @@ export async function seedGenreKnowledge(db: Database): Promise<void> {
         "时代背景要准确，符合当下或设定时间",
       ].join("\n"),
       tags: ["urban"],
-      consumers: ["zhibi", "jiangxin"],
+      consumers: ["writer", "jiangxin"],
     },
     {
       scope: "global",
@@ -126,7 +126,7 @@ export async function seedGenreKnowledge(db: Database): Promise<void> {
         "虚实结合要恰当，不能过度虚构",
       ].join("\n"),
       tags: ["historical"],
-      consumers: ["zhibi", "jiangxin"],
+      consumers: ["writer", "jiangxin"],
     },
     {
       scope: "global",
@@ -141,7 +141,7 @@ export async function seedGenreKnowledge(db: Database): Promise<void> {
         "最终状态要符合逻辑，是前期铺垫的结果",
       ].join("\n"),
       tags: ["general"],
-      consumers: ["zhibi", "jiangxin", "mingjing"],
+      consumers: ["writer", "jiangxin", "mingjing"],
     },
   ]);
 }
