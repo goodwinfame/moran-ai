@@ -377,14 +377,20 @@ describe("subscribeEvents", () => {
     });
     const manager = new OpenCodeSessionManager({ baseUrl: "http://test" });
 
-    const { stream } = manager.subscribeEvents("target-sess");
+    const { stream, close } = manager.subscribeEvents("target-sess");
     const reader = stream.getReader();
     const collected: OpenCodeEvent[] = [];
-    while (true) {
+
+    // Read exactly 2 events (only 2 of 3 raw events match "target-sess").
+    // The global subscription never auto-closes the per-session stream, so
+    // we read the known count and explicitly close instead of waiting for done.
+    for (let i = 0; i < 2; i++) {
       const { done, value } = await reader.read();
       if (done) break;
-      collected.push(value);
+      if (value) collected.push(value);
     }
+    close();
+    reader.releaseLock();
 
     expect(collected).toHaveLength(2);
     expect(collected.every((e) => e.sessionId === "target-sess")).toBe(true);
@@ -518,13 +524,20 @@ describe("subscribeEvents", () => {
     });
     const manager = new OpenCodeSessionManager({ baseUrl: "http://test" });
 
-    const { stream } = manager.subscribeEvents("target-sess");
+    const { stream, close } = manager.subscribeEvents("target-sess");
     const reader = stream.getReader();
+
+    // The null payload is skipped by startGlobalSubscription — 0 events dispatched.
+    // Wait for the async global subscription to finish processing, then close explicitly
+    // (the per-session stream never auto-closes under the new singleton architecture).
+    await new Promise<void>((r) => setTimeout(r, 50));
+    close();
+
     const collected: OpenCodeEvent[] = [];
     while (true) {
       const { done, value } = await reader.read();
       if (done) break;
-      collected.push(value);
+      if (value) collected.push(value);
     }
 
     expect(collected).toHaveLength(0);

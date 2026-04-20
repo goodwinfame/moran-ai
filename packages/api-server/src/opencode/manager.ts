@@ -59,6 +59,11 @@ export class OpenCodeSessionManager {
   private readonly sessions = new Map<string, ManagedSession>();
   private cleanupTimer: ReturnType<typeof setInterval> | null = null;
 
+  /** key = sessionId, value = set of listeners for that session */
+  private readonly globalListeners = new Map<string, Set<(event: OpenCodeEvent) => void>>();
+  /** Whether the singleton global OpenCode SSE subscription is active */
+  private globalEventActive = false;
+
   constructor(options: SessionManagerOptions = {}) {
     this.baseUrl = options.baseUrl ?? process.env.OPENCODE_BASE_URL ?? "http://127.0.0.1:4096";
     this.ttlMs = options.ttlMs ?? SESSION_TTL_MS;
@@ -246,62 +251,108 @@ export class OpenCodeSessionManager {
   }
 
   /**
-   * 订阅 session 事件流
+   * 启动单例全局 OpenCode SSE 订阅（fire-and-forget）
+   * 如果已在运行则立即返回。断开后若还有监听器则 1 秒后自动重连。
+   */
+  private startGlobalSubscription(): void {
+    if (this.globalEventActive) return;
+    this.globalEventActive = true;
+
+    // Fire-and-forget — intentionally not awaited
+    void (async () => {
+      try {
+        // At runtime the SSE stream yields GlobalEvent objects: { directory, payload }.
+        // The SDK's generic parameter doesn't match runtime shape (same issue as before).
+        const result = await this.createClient().global.event();
+        const events = result.stream as unknown as AsyncIterable<{
+          payload: { type: string; properties: Record<string, unknown> };
+        }>;
+
+        for await (const raw of events) {
+          const payload = raw.payload;
+          if (!payload) continue;
+          const eventType = payload.type ?? "";
+          const props = (payload.properties ?? {}) as Record<string, unknown>;
+          const eventSessionId =
+            (props["sessionID"] as string | undefined) ??
+            (props["info"] as { sessionID?: string } | undefined)?.sessionID ??
+            (props["part"] as { sessionID?: string } | undefined)?.sessionID;
+
+          if (eventSessionId) {
+            const listeners = this.globalListeners.get(eventSessionId);
+            if (listeners) {
+              const event: OpenCodeEvent = {
+                type: eventType,
+                sessionId: eventSessionId,
+                data: props,
+              };
+              for (const listener of listeners) listener(event);
+            }
+          }
+        }
+      } catch (err) {
+        log.warn({ err }, "Global OpenCode SSE connection error");
+      } finally {
+        this.globalEventActive = false;
+        // Reconnect after 1 second if there are still active listeners
+        if (this.globalListeners.size > 0) {
+          setTimeout(() => this.startGlobalSubscription(), 1000);
+        }
+      }
+    })();
+  }
+
+  /**
+   * 订阅 session 事件流（单例全局连接 + 按 sessionId 分发）
    * 返回过滤后的 ReadableStream，仅包含该 session 的事件
    */
   subscribeEvents(sessionId: string): {
     stream: ReadableStream<OpenCodeEvent>;
     close: () => void;
   } {
-    const client = this.createClient();
-    const abortController = new AbortController();
+    let controller: ReadableStreamDefaultController<OpenCodeEvent> | null = null;
+
+    const listener = (event: OpenCodeEvent): void => {
+      try {
+        controller?.enqueue(event);
+      } catch {
+        // Stream already closed — ignore
+      }
+    };
+
+    // Register listener before starting subscription so no events are missed
+    if (!this.globalListeners.has(sessionId)) {
+      this.globalListeners.set(sessionId, new Set());
+    }
+    this.globalListeners.get(sessionId)!.add(listener);
+
+    // Ensure the singleton global subscription is running
+    this.startGlobalSubscription();
 
     const stream = new ReadableStream<OpenCodeEvent>({
-      async start(controller) {
-        try {
-          // The SDK's ServerSentEventsResult generic doesn't match runtime behavior.
-          // At runtime, the SSE stream yields parsed GlobalEvent objects: { directory, payload }.
-          // The original code also used `as unknown as` for this same SDK typing issue.
-          const result = await client.global.event();
-          const events = result.stream as unknown as AsyncIterable<{
-            payload: { type: string; properties: Record<string, unknown> };
-          }>;
-          for await (const event of events) {
-            if (abortController.signal.aborted) break;
-            const payload = event.payload;
-            if (!payload) continue;
-            const eventType = payload.type ?? "";
-            const props = (payload.properties ?? {}) as Record<
-              string,
-              unknown
-            >;
-            const eventSessionId =
-              (props["sessionID"] as string | undefined) ??
-              (props["info"] as { sessionID?: string } | undefined)
-                ?.sessionID ??
-              (props["part"] as { sessionID?: string } | undefined)
-                ?.sessionID;
-            if (eventSessionId === sessionId) {
-              controller.enqueue({
-                type: eventType,
-                sessionId: eventSessionId,
-                data: props,
-              });
-            }
-          }
-          controller.close();
-        } catch (err) {
-          if (!abortController.signal.aborted) {
-            controller.error(err);
-          }
-        }
+      start(ctrl) {
+        controller = ctrl;
+      },
+      cancel() {
+        // Cleanup handled by close()
       },
     });
 
-    return {
-      stream,
-      close: () => abortController.abort(),
+    const close = (): void => {
+      const set = this.globalListeners.get(sessionId);
+      if (set) {
+        set.delete(listener);
+        if (set.size === 0) this.globalListeners.delete(sessionId);
+      }
+      try {
+        controller?.close();
+      } catch {
+        // Already closed — ignore
+      }
+      controller = null;
     };
+
+    return { stream, close };
   }
 }
 
