@@ -17,11 +17,11 @@
     }
   },
 
-  "mcpServers": {
+  "mcp": {
     "moran-mcp": {
-      "command": "node",
-      "args": ["./packages/mcp-server/dist/index.js"],
-      "env": {
+      "type": "local",
+      "command": ["node", "./packages/mcp-server/dist/index.js"],
+      "environment": {
         "DATABASE_URL": "${DATABASE_URL}"
       }
     }

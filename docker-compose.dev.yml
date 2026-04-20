@@ -20,11 +20,12 @@ services:
   opencode:
     image: ghcr.io/anomalyco/opencode:latest
     command: ["serve", "--hostname", "0.0.0.0", "--port", "4096"]
+    working_dir: /app
     ports:
       - "4096:4096"
     volumes:
       - ./opencode.json:/app/opencode.json:ro
-      - ./agents:/app/agents:ro
+      - ./agents:/app/.opencode/agents:ro
       - ./packages/mcp-server:/app/packages/mcp-server:ro
       - ${OPENCODE_AUTH_JSON:-${USERPROFILE}/.local/share/opencode/auth.json}:/root/.local/share/opencode/auth.json:ro
     environment:
