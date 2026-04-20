@@ -5,7 +5,7 @@ export async function mockProjectListEmpty(page: Page) {
   await page.route("**/api/projects", (route) =>
     route.fulfill({
       contentType: "application/json",
-      body: JSON.stringify({ projects: [], total: 0 }),
+      body: JSON.stringify({ ok: true, data: [] }),
     }),
   );
 }
@@ -14,7 +14,7 @@ export async function mockProjectList(page: Page, projects: unknown[]) {
   await page.route("**/api/projects", (route) =>
     route.fulfill({
       contentType: "application/json",
-      body: JSON.stringify({ projects, total: projects.length }),
+      body: JSON.stringify({ ok: true, data: projects }),
     }),
   );
 }
