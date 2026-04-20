@@ -27,6 +27,7 @@ export function WorldTab(_props: TabProps) {
     // Here we just pass the ID and assume the page component fetches or reads from store
     return (
       <WorldDetailPage 
+        projectId={_props.projectId}
         subsystemId={activeSubsystemId} 
         onBack={() => setActiveSubsystemId(null)}
         onNavigate={(id) => setActiveSubsystemId(id)}

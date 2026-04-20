@@ -78,6 +78,7 @@ vi.mock("@moran/core/services", () => ({
 
 import { createApp } from "../../app.js";
 import { createPanelRoutes } from "../../routes/panel/index.js";
+import { agentStateTracker } from "../../sse/index.js";
 
 // Build app once — panel routes added after createApp (Hono allows this)
 const { app } = createApp();
@@ -689,14 +690,32 @@ describe("GET /api/projects/:id/stats", () => {
   });
 });
 
-// ── Agent Status (stub) ──────────────────────────────────────────────────────
+// ── Agent Status ─────────────────────────────────────────────────────────────
 
 describe("GET /api/projects/:id/agent-status", () => {
-  it("returns empty agent status array", async () => {
+  it("returns empty array when no agents active", async () => {
     const res = await get("/api/projects/proj-1/agent-status");
     expect(res.status).toBe(200);
     const body = await res.json();
     expect(body.ok).toBe(true);
     expect(body.data).toEqual([]);
+  });
+
+  it("returns active agents when tracker has state", async () => {
+    agentStateTracker.onSubtaskStart("proj-1", "墨衡", "协调写作流程");
+
+    try {
+      const res = await get("/api/projects/proj-1/agent-status");
+      expect(res.status).toBe(200);
+      const body = await res.json();
+      expect(body.ok).toBe(true);
+      expect(body.data).toHaveLength(1);
+      expect(body.data[0].agentName).toBe("墨衡");
+      expect(body.data[0].status).toBe("running");
+      expect(body.data[0].taskDescription).toBe("协调写作流程");
+      expect(typeof body.data[0].startedAt).toBe("number");
+    } finally {
+      agentStateTracker.clearProject("proj-1");
+    }
   });
 });

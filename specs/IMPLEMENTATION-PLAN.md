@@ -483,4 +483,4 @@ $env:GIT_COMMITTER_EMAIL='swim1986@126.com'
 | 10 | UI Integration & Export (ExportService, export API, wire AgentStatusBar/QuickActions/FileUploadDialog/ExportDialog) | ✅ | `f46797c` |
 | 11 | AI Services (ReviewService, AnalysisService, ConsistencyService, ContextService, wire MCP tools + API routes) | ✅ | `2c0ce6d` |
 | 12 | MCP Gate Enforcement (9 gates across 7 tool files, 4 checker helpers, 10 new tests, 1314 total) | ✅ | `a929c96` |
-| 13 | File splits: ProjectSettingsDrawer (679→233) + panel-store (673→289), 500-line compliance | ✅ | pending |
+| 13 | File splits: ProjectSettingsDrawer (679→233) + panel-store (673→289), 500-line compliance | ✅ | `7a83c1c` |

@@ -54,6 +54,16 @@ export interface WorldData {
   activeSubsystemId: string | null;
 }
 
+export interface WorldDetail {
+  id: string;
+  section: string;
+  name: string | null;
+  content: string;
+  sortOrder: number;
+  createdAt: string | null;
+  updatedAt: string | null;
+}
+
 // ── [角色] Tab ─────────────────────────────────────────────────────────────────
 
 export interface CharacterCurrentState {

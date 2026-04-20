@@ -9,10 +9,14 @@ import { describe, expect, it, vi, beforeEach } from "vitest";
 // ── Mock service functions ────────────────────────────────────────────────────
 const mockValidateSession = vi.fn();
 const mockProjectList = vi.fn();
+const mockGetUser = vi.fn();
+const mockUpdateUser = vi.fn();
 
 vi.mock("@moran/core/services", () => ({
   authService: {
     validateSession: (...args: unknown[]) => mockValidateSession(...args),
+    getUser: (...args: unknown[]) => mockGetUser(...args),
+    updateUser: (...args: unknown[]) => mockUpdateUser(...args),
   },
   projectService: {
     list: (...args: unknown[]) => mockProjectList(...args),
@@ -49,13 +53,41 @@ beforeEach(() => {
 
 // ── GET /api/user/profile ─────────────────────────────────────────────────────
 describe("GET /api/user/profile", () => {
-  it("returns the current user's profile (minimal stub)", async () => {
+  it("returns the current user's full profile", async () => {
+    const createdAt = new Date("2024-01-01T00:00:00Z");
+    mockGetUser.mockResolvedValue({
+      ok: true,
+      data: {
+        id: "test-user",
+        email: "test@example.com",
+        displayName: "Test User",
+        createdAt,
+      },
+    });
+
     const res = await get("/api/user/profile");
 
     expect(res.status).toBe(200);
     const body = await res.json();
     expect(body.ok).toBe(true);
-    expect(body.data.userId).toBe("test-user");
+    expect(body.data.id).toBe("test-user");
+    expect(body.data.email).toBe("test@example.com");
+    expect(body.data.displayName).toBe("Test User");
+    expect(mockGetUser).toHaveBeenCalledWith("test-user");
+  });
+
+  it("returns 404 when user not found", async () => {
+    mockGetUser.mockResolvedValue({
+      ok: false,
+      error: { code: "NOT_FOUND", message: "用户不存在" },
+    });
+
+    const res = await get("/api/user/profile");
+
+    expect(res.status).toBe(404);
+    const body = await res.json();
+    expect(body.ok).toBe(false);
+    expect(body.error.code).toBe("NOT_FOUND");
   });
 
   it("returns 401 when no session cookie is provided", async () => {
@@ -86,13 +118,39 @@ describe("GET /api/user/profile", () => {
 
 // ── PATCH /api/user/profile ───────────────────────────────────────────────────
 describe("PATCH /api/user/profile", () => {
-  it("accepts a valid displayName update and returns ok", async () => {
+  it("accepts a valid displayName update and persists", async () => {
+    const updatedAt = new Date("2024-06-01T00:00:00Z");
+    mockUpdateUser.mockResolvedValue({
+      ok: true,
+      data: {
+        id: "test-user",
+        email: "test@example.com",
+        displayName: "New Name",
+        updatedAt,
+      },
+    });
+
     const res = await patch("/api/user/profile", { displayName: "New Name" });
 
     expect(res.status).toBe(200);
     const body = await res.json();
     expect(body.ok).toBe(true);
-    expect(body.data.userId).toBe("test-user");
+    expect(body.data.displayName).toBe("New Name");
+    expect(mockUpdateUser).toHaveBeenCalledWith("test-user", { displayName: "New Name" });
+  });
+
+  it("returns 404 when user not found", async () => {
+    mockUpdateUser.mockResolvedValue({
+      ok: false,
+      error: { code: "NOT_FOUND", message: "用户不存在" },
+    });
+
+    const res = await patch("/api/user/profile", { displayName: "New Name" });
+
+    expect(res.status).toBe(404);
+    const body = await res.json();
+    expect(body.ok).toBe(false);
+    expect(body.error.code).toBe("NOT_FOUND");
   });
 
   it("returns 400 when displayName is empty string", async () => {
@@ -103,6 +161,17 @@ describe("PATCH /api/user/profile", () => {
   });
 
   it("accepts optional preferences object", async () => {
+    const updatedAt = new Date("2024-06-01T00:00:00Z");
+    mockUpdateUser.mockResolvedValue({
+      ok: true,
+      data: {
+        id: "test-user",
+        email: "test@example.com",
+        displayName: "Writer",
+        updatedAt,
+      },
+    });
+
     const res = await patch("/api/user/profile", {
       displayName: "Writer",
       preferences: { theme: "dark" },

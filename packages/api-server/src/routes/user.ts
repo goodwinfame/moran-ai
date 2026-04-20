@@ -3,15 +3,11 @@
  *
  * All routes are protected by requireAuth middleware mounted in app.ts.
  * userId is injected by requireAuth via c.get("userId").
- *
- * NOTE: Profile read/write is currently limited because authService does not
- * yet expose a getUser() or updateUser() method. Stubs are returned for those
- * fields; TODO comments mark the gaps.
  */
 import { Hono } from "hono";
 import { zValidator } from "@hono/zod-validator";
 import { z } from "zod";
-import { projectService } from "@moran/core/services";
+import { authService, projectService } from "@moran/core/services";
 import { ok, fail } from "../utils/response.js";
 
 const updateProfileSchema = z.object({
@@ -25,23 +21,22 @@ export function createUserRoutes() {
   // GET /profile — return current user info
   routes.get("/profile", async (c) => {
     const userId = c.get("userId");
-    // TODO: Call authService.getUser(userId) once the method is available to
-    //       return full profile (email, displayName, createdAt, etc.)
-    return ok(c, {
-      userId,
-    });
+    const result = await authService.getUser(userId);
+    if (!result.ok) {
+      return fail(c, result.error.code, result.error.message, 404);
+    }
+    return ok(c, result.data);
   });
 
   // PATCH /profile — update display name / preferences
   routes.patch("/profile", zValidator("json", updateProfileSchema), async (c) => {
     const userId = c.get("userId");
-    // TODO: Call authService.updateUser(userId, body) once the method is
-    //       available. The body is validated by Zod but not yet persisted.
-    //       const body = c.req.valid("json");
-    return ok(c, {
-      userId,
-      updated: true,
-    });
+    const body = c.req.valid("json");
+    const result = await authService.updateUser(userId, body);
+    if (!result.ok) {
+      return fail(c, result.error.code, result.error.message, 404);
+    }
+    return ok(c, result.data);
   });
 
   // GET /stats — return user global statistics

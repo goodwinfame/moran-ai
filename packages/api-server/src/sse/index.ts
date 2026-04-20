@@ -11,3 +11,5 @@ export type { SSEEvent, SSEEventType, SSEConnection } from "./types.js";
 export { SSE_EVENT_TYPES } from "./types.js";
 export { EventTransformer } from "./transformer.js";
 export { SSEBroadcaster, broadcaster } from "./broadcaster.js";
+export type { AgentStatus } from "./agent-state-tracker.js";
+export { AgentStateTracker, agentStateTracker } from "./agent-state-tracker.js";

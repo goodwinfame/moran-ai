@@ -1,21 +1,30 @@
 "use client";
 
-import React, { useMemo } from "react";
+import React, { useMemo, useEffect } from "react";
 import { usePanelStore } from "@/stores/panel-store";
 import { CollapsibleSection } from "@/components/panel/shared/CollapsibleSection";
 
 interface WorldDetailPageProps {
+  projectId: string;
   subsystemId: string;
   onBack: () => void;
   onNavigate: (id: string) => void;
 }
 
-export function WorldDetailPage({ subsystemId, onBack }: WorldDetailPageProps) {
+export function WorldDetailPage({ projectId, subsystemId, onBack }: WorldDetailPageProps) {
   const worldData = usePanelStore((s) => s.world);
+  const worldDetail = usePanelStore((s) => s.worldDetail);
   const subsystem = useMemo(
     () => worldData?.subsystems.find((sub) => sub.id === subsystemId),
     [worldData, subsystemId]
   );
+
+  useEffect(() => {
+    void usePanelStore.getState().fetchWorldDetail(projectId, subsystemId);
+    return () => {
+      usePanelStore.getState().clearWorldDetail();
+    };
+  }, [projectId, subsystemId]);
 
   if (!subsystem) {
     return <div className="p-4 text-center text-muted-foreground">加载中...</div>;
@@ -60,9 +69,17 @@ export function WorldDetailPage({ subsystemId, onBack }: WorldDetailPageProps) {
             {subsystem.summary || "暂无详细设定内容"}
           </div>
         </CollapsibleSection>
-      </div>
 
-      {/* TODO: Detail sections and cross-references require worldDetail API — not yet available in store */}
+        {worldDetail ? (
+          <CollapsibleSection title="详细内容" defaultOpen>
+            <div className="bg-secondary/20 rounded-xl p-5 border border-border/50 shadow-inner text-sm text-foreground/90 leading-relaxed whitespace-pre-wrap">
+              {worldDetail.content}
+            </div>
+          </CollapsibleSection>
+        ) : (
+          <div className="text-sm text-muted-foreground animate-pulse">加载详细内容中...</div>
+        )}
+      </div>
     </div>
   );
 }

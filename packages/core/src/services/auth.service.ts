@@ -107,3 +107,49 @@ export async function deleteSession(sessionId: string): Promise<void> {
   const db = getDb();
   await db.delete(sessions).where(eq(sessions.id, sessionId));
 }
+
+export async function getUser(
+  userId: string,
+): Promise<ServiceResult<{ id: string; email: string; displayName: string | null; createdAt: Date }>> {
+  const db = getDb();
+  const [user] = await db
+    .select({
+      id: users.id,
+      email: users.email,
+      displayName: users.displayName,
+      createdAt: users.createdAt,
+    })
+    .from(users)
+    .where(eq(users.id, userId))
+    .limit(1);
+
+  if (!user) {
+    return { ok: false, error: { code: "NOT_FOUND", message: "用户不存在" } };
+  }
+  return { ok: true, data: user };
+}
+
+export async function updateUser(
+  userId: string,
+  data: { displayName?: string },
+): Promise<ServiceResult<{ id: string; email: string; displayName: string | null; updatedAt: Date }>> {
+  const db = getDb();
+  const [updated] = await db
+    .update(users)
+    .set({
+      ...(data.displayName !== undefined ? { displayName: data.displayName } : {}),
+      updatedAt: new Date(),
+    })
+    .where(eq(users.id, userId))
+    .returning({
+      id: users.id,
+      email: users.email,
+      displayName: users.displayName,
+      updatedAt: users.updatedAt,
+    });
+
+  if (!updated) {
+    return { ok: false, error: { code: "NOT_FOUND", message: "用户不存在" } };
+  }
+  return { ok: true, data: updated };
+}

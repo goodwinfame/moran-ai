@@ -8,9 +8,11 @@
 import { create } from "zustand";
 import { get as idbGet, set as idbSet } from "idb-keyval";
 import type { TabId } from "@/lib/panel-event-router";
+import { api } from "@/lib/api";
 import type {
   BrainstormData,
   WorldData,
+  WorldDetail,
   CharacterData,
   OutlineData,
   ForeshadowData,
@@ -75,6 +77,7 @@ interface PersistedPanelState {
   visibleTabs: TabId[];
   brainstorm: BrainstormData | null;
   world: WorldData | null;
+  worldDetail: WorldDetail | null;
   characters: CharacterData | null;
   outline: OutlineData | null;
   foreshadows: ForeshadowData | null;
@@ -118,6 +121,10 @@ export interface PanelState extends PersistedPanelState {
 
   // API initial data fetch
   fetchInitialData: (projectId: string) => Promise<void>;
+
+  // World detail on-demand fetch
+  fetchWorldDetail: (projectId: string, settingId: string) => Promise<void>;
+  clearWorldDetail: () => void;
 }
 
 // ── Helpers ────────────────────────────────────────────────────────────────────
@@ -154,6 +161,7 @@ export const usePanelStore = create<PanelState>()((set, get) => ({
   lastUserActionTime: 0,
   brainstorm: null,
   world: null,
+  worldDetail: null,
   characters: null,
   outline: null,
   foreshadows: null,
@@ -264,6 +272,25 @@ export const usePanelStore = create<PanelState>()((set, get) => ({
   // ── API initial data fetch ───────────────────────────────────────────────────
 
   fetchInitialData: (projectId: string) => fetchInitialDataImpl(projectId, get),
+
+  // ── World detail on-demand fetch ─────────────────────────────────────────────
+
+  fetchWorldDetail: async (projectId: string, settingId: string) => {
+    try {
+      const res = await api.get<{ ok: boolean; data: WorldDetail }>(
+        `/api/projects/${projectId}/world-settings/${settingId}`
+      );
+      if (res.ok) {
+        set({ worldDetail: res.data });
+      }
+    } catch {
+      // Silent failure — detail page shows fallback
+    }
+  },
+
+  clearWorldDetail: () => {
+    set({ worldDetail: null });
+  },
 }));
 
 // ── Subscribe to persist data changes to IDB ───────────────────────────────────
@@ -284,6 +311,7 @@ usePanelStore.subscribe((state) => {
     analysis: state.analysis,
     externalAnalysis: state.externalAnalysis,
     knowledge: state.knowledge,
+    worldDetail: state.worldDetail,
   };
   debouncedIdbWrite(currentProjectId, persisted);
 });

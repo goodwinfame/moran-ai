@@ -24,17 +24,22 @@ const mockFrom = vi.fn(() => ({ where: mockWhere }));
 const mockSelect = vi.fn(() => ({ from: mockFrom }));
 const mockDeleteWhere = vi.fn();
 const mockDelete = vi.fn(() => ({ where: mockDeleteWhere }));
+const mockUpdateReturning = vi.fn();
+const mockUpdateWhere = vi.fn(() => ({ returning: mockUpdateReturning }));
+const mockUpdateSet = vi.fn(() => ({ where: mockUpdateWhere }));
+const mockUpdate = vi.fn(() => ({ set: mockUpdateSet }));
 
 vi.mock("../../db/index.js", () => ({
   getDb: () => ({
     select: mockSelect,
     insert: mockInsert,
     delete: mockDelete,
+    update: mockUpdate,
   }),
 }));
 
 import bcrypt from "bcryptjs";
-import { register, login, createSession, validateSession, deleteSession } from "../auth.service.js";
+import { register, login, createSession, validateSession, deleteSession, getUser, updateUser } from "../auth.service.js";
 
 beforeEach(() => {
   vi.clearAllMocks();
@@ -204,6 +209,63 @@ describe("auth.service", () => {
 
       expect(mockDelete).toHaveBeenCalled();
       expect(mockDeleteWhere).toHaveBeenCalled();
+    });
+  });
+
+  describe("getUser", () => {
+    it("returns user data when found", async () => {
+      const createdAt = new Date("2024-01-01T00:00:00Z");
+      mockLimit.mockResolvedValue([
+        { id: "user-uuid-1", email: "user@example.com", displayName: "Test User", createdAt },
+      ]);
+
+      const result = await getUser("user-uuid-1");
+
+      expect(result).toEqual({
+        ok: true,
+        data: { id: "user-uuid-1", email: "user@example.com", displayName: "Test User", createdAt },
+      });
+      expect(mockSelect).toHaveBeenCalled();
+    });
+
+    it("returns NOT_FOUND when user does not exist", async () => {
+      mockLimit.mockResolvedValue([]);
+
+      const result = await getUser("nonexistent-id");
+
+      expect(result).toEqual({
+        ok: false,
+        error: { code: "NOT_FOUND", message: "用户不存在" },
+      });
+    });
+  });
+
+  describe("updateUser", () => {
+    it("updates displayName and returns updated data", async () => {
+      const updatedAt = new Date("2024-06-01T00:00:00Z");
+      mockUpdateReturning.mockResolvedValue([
+        { id: "user-uuid-1", email: "user@example.com", displayName: "New Name", updatedAt },
+      ]);
+
+      const result = await updateUser("user-uuid-1", { displayName: "New Name" });
+
+      expect(result).toEqual({
+        ok: true,
+        data: { id: "user-uuid-1", email: "user@example.com", displayName: "New Name", updatedAt },
+      });
+      expect(mockUpdate).toHaveBeenCalled();
+      expect(mockUpdateSet).toHaveBeenCalled();
+    });
+
+    it("returns NOT_FOUND when user does not exist", async () => {
+      mockUpdateReturning.mockResolvedValue([]);
+
+      const result = await updateUser("nonexistent-id", { displayName: "New Name" });
+
+      expect(result).toEqual({
+        ok: false,
+        error: { code: "NOT_FOUND", message: "用户不存在" },
+      });
     });
   });
 });
