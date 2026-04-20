@@ -55,6 +55,7 @@ function resetStore() {
     isSending: false,
     inlineMessages: [],
     streamingReply: "",
+    sessionId: null,
   });
 }
 
@@ -408,7 +409,7 @@ describe("useProjectListStore", () => {
       expect(api.post).toHaveBeenCalledWith("/api/chat/send", {
         projectId: null,
         message: "hello",
-        agent: "moheng",
+        agent: "moheng-home",
       });
     });
 

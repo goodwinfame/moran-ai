@@ -30,6 +30,7 @@ export interface InlineReply {
     type: "navigate" | "create_project";
     projectId?: string;
     title?: string;
+    genre?: string;
   };
 }
 
@@ -46,6 +47,8 @@ export interface ProjectListState {
   streamingReply: string;
   /** Status text shown while AI is thinking (before first text token) */
   thinkingStatus: string;
+  /** Cached OpenCode sessionId (pre-warmed on page load to avoid 20s delay) */
+  sessionId: string | null;
 
   fetchProjects: () => Promise<void>;
   createProject: (title: string, genre?: string) => Promise<string>;
@@ -53,6 +56,8 @@ export interface ProjectListState {
   renameProject: (id: string, title: string) => Promise<void>;
   pinProject: (id: string) => Promise<void>;
   archiveProject: (id: string) => Promise<void>;
+  /** Pre-warm the OpenCode session so first message doesn't block on session creation */
+  initSession: () => Promise<void>;
   sendInlineMessage: (message: string) => Promise<InlineReply | null>;
   clearInlineMessages: () => void;
 }
@@ -92,6 +97,44 @@ function trimMessages(msgs: InlineMessage[]): InlineMessage[] {
   return msgs.slice(msgs.length - MAX_INLINE_MESSAGES);
 }
 
+// ── Action Parsing ───────────────────────────────────────────────────────────
+
+/** Parse <!--ACTION:{...}--> from agent response text */
+function parseAction(text: string): InlineReply["action"] | undefined {
+  const match = text.match(/<!--ACTION:(.*?)-->/);
+  if (!match?.[1]) return undefined;
+  try {
+    const action = JSON.parse(match[1]) as Record<string, unknown>;
+    if (action.type === "create_project" && typeof action.title === "string") {
+      return {
+        type: "create_project",
+        title: action.title,
+        genre: typeof action.genre === "string" ? action.genre : undefined,
+      };
+    }
+    if (action.type === "navigate" && typeof action.projectId === "string") {
+      return { type: "navigate", projectId: action.projectId };
+    }
+    return undefined;
+  } catch {
+    return undefined;
+  }
+}
+
+/** Strip <!--ACTION:...--> from display text */
+function stripAction(text: string): string {
+  return text.replace(/<!--ACTION:.*?-->/g, "").trim();
+}
+
+/** Build message with project list context for moheng-home */
+function buildContextMessage(message: string, projects: ProjectItem[]): string {
+  if (projects.length === 0) return message;
+  const list = projects
+    .map((p) => `"${p.title}"(id:${p.id},${p.status},${p.currentChapter}/${p.chapterCount}章)`)
+    .join(", ");
+  return `[项目列表: ${list}]\n${message}`;
+}
+
 // ── Store ─────────────────────────────────────────────────────────────────────
 
 export const useProjectListStore = create<ProjectListState>()((set, get) => ({
@@ -101,6 +144,7 @@ export const useProjectListStore = create<ProjectListState>()((set, get) => ({
   inlineMessages: [],
   streamingReply: "",
   thinkingStatus: "",
+  sessionId: null,
 
   fetchProjects: async () => {
     set({ isLoading: true });
@@ -189,6 +233,18 @@ export const useProjectListStore = create<ProjectListState>()((set, get) => ({
     }
   },
 
+  initSession: async () => {
+    try {
+      const res = await api.get<{ ok: true; data: { sessionId: string } }>(
+        "/api/chat/session",
+      );
+      set({ sessionId: res.data.sessionId });
+    } catch (err) {
+      console.error("[project-list-store] initSession failed:", err);
+      // Non-fatal: sendInlineMessage will fall back to fetching session on demand
+    }
+  },
+
   sendInlineMessage: async (message: string) => {
     // 1. Add user message immediately
     const userMsg: InlineMessage = { role: "user", content: message };
@@ -204,13 +260,20 @@ export const useProjectListStore = create<ProjectListState>()((set, get) => ({
     activeSSEClient = null;
 
     try {
-      // 3. Get session FIRST (before sending message, before connecting SSE)
-      const sessionRes = await api.get<{ ok: true; data: { sessionId: string } }>(
-        "/api/chat/session",
-      );
-      const { sessionId } = sessionRes.data;
+      // 3. Use pre-warmed session or fetch on demand (fallback)
+      let sessionId = get().sessionId;
+      if (!sessionId) {
+        const sessionRes = await api.get<{ ok: true; data: { sessionId: string } }>(
+          "/api/chat/session",
+        );
+        sessionId = sessionRes.data.sessionId;
+        set({ sessionId });
+      }
 
-      // 4. Connect SSE → wait for onConnect → THEN send message
+      // 4. Build message with project context for moheng-home
+      const contextMessage = buildContextMessage(message, get().projects);
+
+      // 5. Connect SSE → wait for onConnect → THEN send message
       //    This eliminates the race condition where events are emitted
       //    before the SSE subscription is established.
       return await new Promise<InlineReply | null>((resolve) => {
@@ -222,14 +285,16 @@ export const useProjectListStore = create<ProjectListState>()((set, get) => ({
           client.disconnect();
           activeSSEClient = null;
           if (text) {
-            const assistantMsg: InlineMessage = { role: "assistant", content: text };
+            const action = parseAction(text);
+            const displayText = stripAction(text);
+            const assistantMsg: InlineMessage = { role: "assistant", content: displayText };
             set((state) => ({
               isSending: false,
               streamingReply: "",
               thinkingStatus: "",
               inlineMessages: trimMessages([...state.inlineMessages, assistantMsg]),
             }));
-            resolve({ text });
+            resolve({ text: displayText, action });
           } else {
             set({ isSending: false, streamingReply: "", thinkingStatus: "" });
             resolve(null);
@@ -250,7 +315,11 @@ export const useProjectListStore = create<ProjectListState>()((set, get) => ({
           if (messageSent) return;
           messageSent = true;
           api
-            .post("/api/chat/send", { projectId: null, message, agent: "moheng" })
+            .post("/api/chat/send", {
+              projectId: null,
+              message: contextMessage,
+              agent: "moheng-home",
+            })
             .catch((err: unknown) => {
               console.error("[project-list-store] POST /send failed:", err);
               clearTimeout(timeoutId);
@@ -277,10 +346,11 @@ export const useProjectListStore = create<ProjectListState>()((set, get) => ({
             sendMessage();
             const chunk = typeof data.text === "string" ? data.text : "";
             accumulatedText += chunk;
-            set({ streamingReply: accumulatedText, thinkingStatus: "" });
+            // Strip action markers from streaming display
+            set({ streamingReply: stripAction(accumulatedText), thinkingStatus: "" });
           },
           tool_call: (data) => {
-            // Show which MCP tool is being called (before first text token)
+            // moheng-home should NOT call tools, but handle gracefully
             if (!accumulatedText) {
               const toolName = typeof data.toolName === "string" ? data.toolName : "";
               if (toolName) {
@@ -289,7 +359,7 @@ export const useProjectListStore = create<ProjectListState>()((set, get) => ({
             }
           },
           subtask_start: (data) => {
-            // Show which sub-agent is working (before first text token)
+            // moheng-home should NOT delegate, but handle gracefully
             if (!accumulatedText) {
               const part = data.part as Record<string, unknown> | undefined;
               const agentId =

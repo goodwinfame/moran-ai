@@ -22,6 +22,7 @@ export function ProjectListPage() {
     thinkingStatus,
     fetchProjects,
     createProject,
+    initSession,
     sendInlineMessage,
   } = useProjectListStore();
 
@@ -31,7 +32,8 @@ export function ProjectListPage() {
 
   useEffect(() => {
     fetchProjects();
-  }, [fetchProjects]);
+    initSession(); // Pre-warm OpenCode session to avoid 20s delay on first message
+  }, [fetchProjects, initSession]);
 
   const handleSend = async (message: string) => {
     if (!message.trim() || isSending) return;
@@ -41,7 +43,7 @@ export function ProjectListPage() {
       if (reply.action.type === "navigate" && reply.action.projectId) {
         router.push(`/projects/${reply.action.projectId}`);
       } else if (reply.action.type === "create_project" && reply.action.title) {
-        const id = await createProject(reply.action.title, "小说"); // Default genre
+        const id = await createProject(reply.action.title, reply.action.genre ?? "小说");
         if (id) {
           router.push(`/projects/${id}`);
         }

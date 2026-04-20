@@ -51,6 +51,7 @@ describe("ProjectListPage", () => {
       inlineMessages: [],
       fetchProjects: vi.fn(),
       createProject: vi.fn(),
+      initSession: vi.fn(),
       sendInlineMessage: vi.fn(),
     });
 
@@ -69,6 +70,7 @@ describe("ProjectListPage", () => {
       inlineMessages: [],
       fetchProjects: vi.fn(),
       createProject: vi.fn(),
+      initSession: vi.fn(),
       sendInlineMessage: vi.fn(),
     });
 
@@ -85,6 +87,7 @@ describe("ProjectListPage", () => {
       inlineMessages: [],
       fetchProjects: vi.fn(),
       createProject: vi.fn(),
+      initSession: vi.fn(),
       sendInlineMessage: vi.fn(),
     });
 
@@ -100,6 +103,7 @@ describe("ProjectListPage", () => {
   it("calls fetchProjects on mount", () => {
     (useRouter as any).mockReturnValue({ push: vi.fn() });
     const fetchProjectsMock = vi.fn();
+    const initSessionMock = vi.fn();
     (useProjectListStore as any).mockReturnValue({
       projects: [],
       isLoading: false,
@@ -107,10 +111,12 @@ describe("ProjectListPage", () => {
       inlineMessages: [],
       fetchProjects: fetchProjectsMock,
       createProject: vi.fn(),
+      initSession: initSessionMock,
       sendInlineMessage: vi.fn(),
     });
 
     render(<ProjectListPage />);
     expect(fetchProjectsMock).toHaveBeenCalledTimes(1);
+    expect(initSessionMock).toHaveBeenCalledTimes(1);
   });
 });
