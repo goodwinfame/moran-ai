@@ -13,6 +13,16 @@ vi.mock("@moran/core/services", () => ({
   },
 }));
 
+const { mockCheckPrerequisites, mockToGateDetails } = vi.hoisted(() => ({
+  mockCheckPrerequisites: vi.fn(),
+  mockToGateDetails: vi.fn(),
+}));
+
+vi.mock("../../gates/checker.js", () => ({
+  checkPrerequisites: mockCheckPrerequisites,
+  toGateDetails: mockToGateDetails,
+}));
+
 import { registerTimelineTools } from "../../tools/timeline.js";
 
 const PROJECT_ID = "00000000-0000-0000-0000-000000000001";
@@ -28,6 +38,7 @@ describe("timeline tools", () => {
 
   beforeEach(() => {
     vi.clearAllMocks();
+    mockCheckPrerequisites.mockResolvedValue({ passed: true, conditions: [] });
   });
 
   describe("timeline_create", () => {
@@ -136,6 +147,31 @@ describe("timeline tools", () => {
       const payload = parseResponse(result);
       expect(payload.ok).toBe(false);
       expect(payload.error?.code).toBe("VALIDATION");
+    });
+
+    it("blocks when review gate not met", async () => {
+      mockCheckPrerequisites.mockResolvedValue({
+        passed: false,
+        conditions: [{ description: "第3章审校已通过", level: "HARD", met: false }],
+      });
+      mockToGateDetails.mockReturnValue({
+        passed: [],
+        failed: ["第3章审校已通过"],
+        suggestions: ["该章节审校尚未通过，请先完成四轮审校"],
+      });
+
+      const result = await handlers.get("timeline_create")!({
+        projectId: PROJECT_ID,
+        chapterNumber: 3,
+        events: [
+          { storyTimestamp: "第三天", description: "事件1", characterIds: [CHAR_ID_1] },
+        ],
+      });
+
+      const payload = parseResponse(result);
+      expect(payload.ok).toBe(false);
+      expect(payload.error?.code).toBe("GATE_FAILED");
+      expect(mockCreate).not.toHaveBeenCalled();
     });
   });
 

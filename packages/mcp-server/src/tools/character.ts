@@ -96,11 +96,16 @@ export function registerCharacterTools(server: McpServer) {
       projectId: z.string().uuid(),
       characterId: z.string().uuid(),
     },
-  }, async ({ characterId }) => {
-    // TODO: SOFT gate — 该角色未在已归档章节中出场（有出场时警告但仍执行）
+  }, async ({ projectId, characterId }) => {
+    // SOFT gate — warn if character appears in archived chapters, but still execute
+    const prereqs = await checkPrerequisites(projectId, "character_remove", { characterId });
     const result = await characterService.remove(characterId);
     if (!result.ok) return fromService(result);
-    return ok({ id: characterId });
+    const warnings = prereqs.conditions
+      .filter((c) => !c.met && c.level === "SOFT")
+      .map((c) => c.suggestion)
+      .filter(Boolean) as string[];
+    return ok({ id: characterId, warnings: warnings.length > 0 ? warnings : undefined });
   });
 
   server.registerTool("character_patch", {

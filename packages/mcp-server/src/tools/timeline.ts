@@ -9,6 +9,7 @@ import type { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { z } from "zod";
 import { timelineService } from "@moran/core/services";
 import { ok, fail, fromService } from "../utils/response.js";
+import { checkPrerequisites, toGateDetails } from "../gates/checker.js";
 
 export function registerTimelineTools(server: McpServer) {
   server.registerTool("timeline_create", {
@@ -24,7 +25,10 @@ export function registerTimelineTools(server: McpServer) {
       })).min(1),
     },
   }, async ({ projectId, chapterNumber, events }) => {
-    // TODO: HARD gate — 该章节审校通过
+    const prereqs = await checkPrerequisites(projectId, "timeline_record", { chapterNumber });
+    if (!prereqs.passed) {
+      return fail("GATE_FAILED", "前置条件未满足", toGateDetails(prereqs));
+    }
     const ids: string[] = [];
     for (const event of events) {
       const result = await timelineService.create(projectId, {

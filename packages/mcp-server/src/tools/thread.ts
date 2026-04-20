@@ -20,6 +20,7 @@ import type { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { z } from "zod";
 import { threadService } from "@moran/core/services";
 import { ok, fail, fromService } from "../utils/response.js";
+import { checkPrerequisites, toGateDetails } from "../gates/checker.js";
 
 const ACTION_STATUS_MAP: Record<string, string> = {
   advance: "developing",
@@ -38,7 +39,10 @@ export function registerThreadTools(server: McpServer) {
       expectedPayoff: z.number().int().positive().optional(),
     },
   }, async ({ projectId, title, description, plantedChapter, expectedPayoff }) => {
-    // TODO: HARD gate — plantedChapter 已存在内容（需 chapterService 集成）
+    const prereqs = await checkPrerequisites(projectId, "thread_plant", { chapterNumber: plantedChapter });
+    if (!prereqs.passed) {
+      return fail("GATE_FAILED", "前置条件未满足", toGateDetails(prereqs));
+    }
     const result = await threadService.create(projectId, {
       name: title,
       description,
@@ -106,6 +110,12 @@ export function registerThreadTools(server: McpServer) {
     // Verify thread exists
     const readResult = await threadService.read(projectId, threadId);
     if (!readResult.ok) return fail("NOT_FOUND", readResult.error.message);
+
+    // Gate: chapter must have review passed before updating thread status
+    const updatePrereqs = await checkPrerequisites(projectId, "thread_advance", { chapterNumber });
+    if (!updatePrereqs.passed) {
+      return fail("GATE_FAILED", "前置条件未满足", toGateDetails(updatePrereqs));
+    }
 
     const newStatus = ACTION_STATUS_MAP[action] as "developing" | "resolved" | "stale";
 

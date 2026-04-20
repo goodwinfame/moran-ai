@@ -16,6 +16,12 @@ import { outlines } from "@moran/core/db/schema";
 import { styleConfigs } from "@moran/core/db/schema";
 import { chapterBriefs, chapters } from "@moran/core/db/schema";
 import type { GateDetails } from "../types.js";
+import {
+  reviewService,
+  outlineService,
+  chapterService as chapterSvc,
+  characterService as charSvc,
+} from "@moran/core/services";
 
 export interface GateCondition {
   description: string;
@@ -162,6 +168,68 @@ async function hasChapter(
   return !!row;
 }
 
+// ── Service-based prerequisite helpers ──
+
+async function hasReviewPassed(
+  projectId: string,
+  chapterNumber: number,
+): Promise<boolean> {
+  const result = await reviewService.isChapterPassed(projectId, chapterNumber);
+  return result.ok && result.data.passed;
+}
+
+async function hasReviewReport(
+  projectId: string,
+  chapterNumber: number,
+): Promise<boolean> {
+  const result = await reviewService.readByChapter(projectId, chapterNumber);
+  return result.ok && result.data.length > 0;
+}
+
+async function areArcChaptersArchived(
+  projectId: string,
+  arcIndex: number,
+): Promise<boolean> {
+  const arcResult = await outlineService.readArc(projectId, arcIndex);
+  if (!arcResult.ok) return false;
+  const { startChapter, endChapter } = arcResult.data;
+  if (startChapter == null || endChapter == null) return false;
+
+  const chaptersResult = await chapterSvc.list(projectId);
+  if (!chaptersResult.ok) return false;
+
+  const arcChapters = chaptersResult.data.filter(
+    (c) => c.chapterNumber >= startChapter && c.chapterNumber <= endChapter,
+  );
+  if (arcChapters.length === 0) return false;
+
+  // All chapters in range must be archived
+  const expectedCount = endChapter - startChapter + 1;
+  return (
+    arcChapters.length === expectedCount &&
+    arcChapters.every((c) => c.status === "archived")
+  );
+}
+
+async function isCharacterInArchivedChapters(
+  projectId: string,
+  characterId: string,
+): Promise<boolean> {
+  const statesResult = await charSvc.listStates(characterId);
+  if (!statesResult.ok || statesResult.data.length === 0) return false;
+
+  const chaptersResult = await chapterSvc.list(projectId);
+  if (!chaptersResult.ok) return false;
+
+  const archivedChapterNumbers = new Set(
+    chaptersResult.data
+      .filter((c) => c.status === "archived")
+      .map((c) => c.chapterNumber),
+  );
+
+  return statesResult.data.some((s) => archivedChapterNumbers.has(s.chapterNumber));
+}
+
 // ── Gate check for specific actions ──
 
 type GateAction =
@@ -173,7 +241,15 @@ type GateAction =
   | "chapter_write"
   | "review"
   | "archive"
-  | "analysis";
+  | "analysis"
+  | "timeline_record"
+  | "thread_plant"
+  | "thread_advance"
+  | "summary_chapter"
+  | "summary_arc"
+  | "chapter_revise"
+  | "character_state_record"
+  | "character_remove";
 
 export async function checkPrerequisites(
   projectId: string,
@@ -313,6 +389,14 @@ export async function checkPrerequisites(
         met: chapterExists,
         suggestion: chapterExists ? undefined : "该章节尚未写作",
       });
+      // Review must be passed for archive
+      const reviewPassed = await hasReviewPassed(projectId, chapterNum);
+      conditions.push({
+        description: `第${chapterNum}章审校已通过（四轮全部完成）`,
+        level: "HARD",
+        met: reviewPassed,
+        suggestion: reviewPassed ? undefined : "该章节审校尚未通过（需四轮全部通过）",
+      });
       break;
     }
 
@@ -324,6 +408,104 @@ export async function checkPrerequisites(
         met: anySetting,
         suggestion: anySetting ? undefined : "项目尚无内容可分析",
       });
+      break;
+    }
+
+    case "timeline_record": {
+      const chapterNum = (params?.chapterNumber as number) ?? 1;
+      const reviewPassed = await hasReviewPassed(projectId, chapterNum);
+      conditions.push({
+        description: `第${chapterNum}章审校已通过`,
+        level: "HARD",
+        met: reviewPassed,
+        suggestion: reviewPassed ? undefined : "该章节审校尚未通过，请先完成四轮审校",
+      });
+      break;
+    }
+
+    case "thread_plant": {
+      const chapterNum = (params?.chapterNumber as number) ?? 1;
+      const chapterExists = await hasChapter(projectId, chapterNum);
+      conditions.push({
+        description: `第${chapterNum}章内容已存在`,
+        level: "HARD",
+        met: chapterExists,
+        suggestion: chapterExists ? undefined : "伏笔必须在已有内容的章节中埋设",
+      });
+      break;
+    }
+
+    case "thread_advance": {
+      const chapterNum = (params?.chapterNumber as number) ?? 1;
+      const reviewPassed = await hasReviewPassed(projectId, chapterNum);
+      conditions.push({
+        description: `第${chapterNum}章审校已通过`,
+        level: "HARD",
+        met: reviewPassed,
+        suggestion: reviewPassed ? undefined : "该章节审校尚未通过",
+      });
+      break;
+    }
+
+    case "summary_chapter": {
+      const chapterNum = (params?.chapterNumber as number) ?? 1;
+      const reviewPassed = await hasReviewPassed(projectId, chapterNum);
+      conditions.push({
+        description: `第${chapterNum}章审校已通过（四轮完成）`,
+        level: "HARD",
+        met: reviewPassed,
+        suggestion: reviewPassed ? undefined : "请先完成四轮审校后再创建摘要",
+      });
+      break;
+    }
+
+    case "summary_arc": {
+      const arcIdx = (params?.arcIndex as number) ?? 0;
+      const allArchived = await areArcChaptersArchived(projectId, arcIdx);
+      conditions.push({
+        description: `弧段${arcIdx}内所有章节已归档`,
+        level: "HARD",
+        met: allArchived,
+        suggestion: allArchived ? undefined : "弧段内尚有未归档章节",
+      });
+      break;
+    }
+
+    case "chapter_revise": {
+      const chapterNum = (params?.chapterNumber as number) ?? 1;
+      const hasReport = await hasReviewReport(projectId, chapterNum);
+      conditions.push({
+        description: `第${chapterNum}章有对应的审校报告`,
+        level: "HARD",
+        met: hasReport,
+        suggestion: hasReport ? undefined : "该章节没有审校报告，请先执行审校",
+      });
+      break;
+    }
+
+    case "character_state_record": {
+      const chapterNum = (params?.chapterNumber as number) ?? 1;
+      const chapterExists = await hasChapter(projectId, chapterNum);
+      conditions.push({
+        description: `第${chapterNum}章内容已存在`,
+        level: "HARD",
+        met: chapterExists,
+        suggestion: chapterExists ? undefined : "请先写作该章节",
+      });
+      break;
+    }
+
+    case "character_remove": {
+      const characterId = params?.characterId as string;
+      if (characterId) {
+        const inArchived = await isCharacterInArchivedChapters(projectId, characterId);
+        conditions.push({
+          description: "该角色未在已归档章节中出场",
+          level: "SOFT",
+          met: !inArchived,
+          suggestion: inArchived ? "该角色在已归档章节中出场，删除可能影响一致性" : undefined,
+        });
+      }
       break;
     }
 

@@ -65,6 +65,7 @@ describe("chapter tools", () => {
 
   beforeEach(() => {
     vi.clearAllMocks();
+    mockCheckPrerequisites.mockResolvedValue({ passed: true, conditions: [] });
   });
 
   describe("chapter_create", () => {
@@ -335,6 +336,30 @@ describe("chapter tools", () => {
       });
 
       expect(mockCreateVersion).not.toHaveBeenCalled();
+    });
+
+    it("blocks when review report gate not met", async () => {
+      mockCheckPrerequisites.mockResolvedValue({
+        passed: false,
+        conditions: [{ description: "第1章有对应的审校报告", level: "HARD", met: false }],
+      });
+      mockToGateDetails.mockReturnValue({
+        passed: [],
+        failed: ["第1章有对应的审校报告"],
+        suggestions: ["该章节没有审校报告，请先执行审校"],
+      });
+
+      const result = await handlers.get("chapter_update")!({
+        projectId: PROJECT_ID,
+        chapterNumber: 1,
+        feedback: [],
+        revisedContent: "内容",
+      });
+
+      const payload = parseResponse(result);
+      expect(payload.ok).toBe(false);
+      expect(payload.error?.code).toBe("GATE_FAILED");
+      expect(mockRead).not.toHaveBeenCalled();
     });
   });
 

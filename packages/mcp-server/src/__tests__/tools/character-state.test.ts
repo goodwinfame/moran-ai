@@ -16,6 +16,16 @@ vi.mock("@moran/core/services", () => ({
   },
 }));
 
+const { mockCheckPrerequisites, mockToGateDetails } = vi.hoisted(() => ({
+  mockCheckPrerequisites: vi.fn(),
+  mockToGateDetails: vi.fn(),
+}));
+
+vi.mock("../../gates/checker.js", () => ({
+  checkPrerequisites: mockCheckPrerequisites,
+  toGateDetails: mockToGateDetails,
+}));
+
 import { registerCharacterStateTools } from "../../tools/character-state.js";
 
 describe("character-state tools", () => {
@@ -23,6 +33,7 @@ describe("character-state tools", () => {
 
   beforeEach(() => {
     vi.clearAllMocks();
+    mockCheckPrerequisites.mockResolvedValue({ passed: true, conditions: [] });
   });
 
   registerCharacterStateTools(server);
@@ -187,6 +198,30 @@ describe("character-state tools", () => {
 
       expect(payload.ok).toBe(false);
       expect(payload.error?.code).toBe("CONFLICT");
+    });
+
+    it("blocks when chapter does not exist (gate not met)", async () => {
+      mockCheckPrerequisites.mockResolvedValue({
+        passed: false,
+        conditions: [{ description: "第1章内容已存在", level: "HARD", met: false }],
+      });
+      mockToGateDetails.mockReturnValue({
+        passed: [],
+        failed: ["第1章内容已存在"],
+        suggestions: ["请先写作该章节"],
+      });
+
+      const result = await handlers.get("character_state_create")!({
+        projectId: "00000000-0000-0000-0000-000000000001",
+        characterId: "00000000-0000-0000-0000-000000000002",
+        chapterNumber: 1,
+        state: "{}",
+      });
+      const payload = parseResponse(result);
+
+      expect(payload.ok).toBe(false);
+      expect(payload.error?.code).toBe("GATE_FAILED");
+      expect(mockCharacterCreateState).not.toHaveBeenCalled();
     });
   });
 

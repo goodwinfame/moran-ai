@@ -43,6 +43,7 @@ describe("character tools", () => {
 
   beforeEach(() => {
     vi.clearAllMocks();
+    mockCheckPrerequisites.mockResolvedValue({ passed: true, conditions: [] });
   });
 
   registerCharacterTools(server);
@@ -293,6 +294,56 @@ describe("character tools", () => {
 
       expect(payload.ok).toBe(false);
       expect(payload.error?.code).toBe("NOT_FOUND");
+    });
+
+    it("includes warnings when soft gate triggered (character in archived chapters)", async () => {
+      mockCheckPrerequisites.mockResolvedValue({
+        passed: true,
+        conditions: [
+          {
+            description: "该角色未在已归档章节中出场",
+            level: "SOFT",
+            met: false,
+            suggestion: "该角色在已归档章节中出场，删除可能影响一致性",
+          },
+        ],
+      });
+      mockCharacterRemove.mockResolvedValue({ ok: true, data: undefined });
+
+      const result = await handlers.get("character_delete")!({
+        projectId: "00000000-0000-0000-0000-000000000001",
+        characterId: "00000000-0000-0000-0000-000000000002",
+      });
+      const payload = parseResponse(result);
+
+      expect(payload.ok).toBe(true);
+      const data = payload.data as Record<string, unknown>;
+      expect(data.id).toBe("00000000-0000-0000-0000-000000000002");
+      expect(data.warnings).toEqual(["该角色在已归档章节中出场，删除可能影响一致性"]);
+    });
+
+    it("returns no warnings when soft gate passes (character not in archived chapters)", async () => {
+      mockCheckPrerequisites.mockResolvedValue({
+        passed: true,
+        conditions: [
+          {
+            description: "该角色未在已归档章节中出场",
+            level: "SOFT",
+            met: true,
+          },
+        ],
+      });
+      mockCharacterRemove.mockResolvedValue({ ok: true, data: undefined });
+
+      const result = await handlers.get("character_delete")!({
+        projectId: "00000000-0000-0000-0000-000000000001",
+        characterId: "00000000-0000-0000-0000-000000000002",
+      });
+      const payload = parseResponse(result);
+
+      expect(payload.ok).toBe(true);
+      const data = payload.data as Record<string, unknown>;
+      expect(data.warnings).toBeUndefined();
     });
   });
 

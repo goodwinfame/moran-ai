@@ -9,6 +9,7 @@ import type { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { z } from "zod";
 import { summaryService } from "@moran/core/services";
 import { ok, fail, fromService } from "../utils/response.js";
+import { checkPrerequisites, toGateDetails } from "../gates/checker.js";
 
 const SUMMARY_TYPE = ["chapter", "arc"] as const;
 
@@ -23,10 +24,13 @@ export function registerSummaryTools(server: McpServer) {
       content: z.string(),
     },
   }, async ({ projectId, type, chapterNumber, arcIndex, content }) => {
-    // TODO: HARD gate — chapter: 该章节审校通过; arc: 该弧段内所有章节已归档
     if (type === "chapter") {
       if (chapterNumber === undefined) {
         return fail("INVALID_INPUT", "type=chapter 时 chapterNumber 为必填");
+      }
+      const prereqs = await checkPrerequisites(projectId, "summary_chapter", { chapterNumber });
+      if (!prereqs.passed) {
+        return fail("GATE_FAILED", "前置条件未满足", toGateDetails(prereqs));
       }
       const result = await summaryService.createChapterSummary(projectId, { chapterNumber, content });
       return fromService(result);
@@ -34,6 +38,10 @@ export function registerSummaryTools(server: McpServer) {
 
     if (arcIndex === undefined) {
       return fail("INVALID_INPUT", "type=arc 时 arcIndex 为必填");
+    }
+    const prereqs = await checkPrerequisites(projectId, "summary_arc", { arcIndex });
+    if (!prereqs.passed) {
+      return fail("GATE_FAILED", "前置条件未满足", toGateDetails(prereqs));
     }
     const result = await summaryService.createArcSummary(projectId, { arcIndex, content });
     return fromService(result);

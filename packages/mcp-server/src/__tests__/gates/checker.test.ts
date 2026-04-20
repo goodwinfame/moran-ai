@@ -24,6 +24,31 @@ vi.mock("@moran/core/db/schema", () => ({
   chapters: { id: "cp.id", projectId: "cp.projectId", chapterNumber: "cp.chapterNumber" },
 }));
 
+// Mock services used by the new gate helpers
+const { mockIsChapterPassed, mockReadByChapter, mockReadArc, mockChapterList, mockListStates } = vi.hoisted(() => ({
+  mockIsChapterPassed: vi.fn(),
+  mockReadByChapter: vi.fn(),
+  mockReadArc: vi.fn(),
+  mockChapterList: vi.fn(),
+  mockListStates: vi.fn(),
+}));
+
+vi.mock("@moran/core/services", () => ({
+  reviewService: {
+    isChapterPassed: mockIsChapterPassed,
+    readByChapter: mockReadByChapter,
+  },
+  outlineService: {
+    readArc: mockReadArc,
+  },
+  chapterService: {
+    list: mockChapterList,
+  },
+  characterService: {
+    listStates: mockListStates,
+  },
+}));
+
 // ── Imports (after mocks) ───────────────────────────────────────────────────
 import { checkPrerequisites, toGateDetails } from "../../gates/checker.js";
 import type { GateResult, GateCondition } from "../../gates/checker.js";
@@ -312,21 +337,34 @@ describe("checkPrerequisites()", () => {
   });
 
   describe("archive action", () => {
-    it("passes when chapter exists", async () => {
-      mockRow(true);
+    it("passes when chapter exists and review passed", async () => {
+      mockRow(true); // hasChapter
+      mockIsChapterPassed.mockResolvedValueOnce({ ok: true, data: { passed: true, completedRounds: 4 } });
       const result = await checkPrerequisites("proj-1", "archive", { chapterNumber: 1 });
       expect(result.passed).toBe(true);
-      expect(result.conditions).toHaveLength(1);
+      expect(result.conditions).toHaveLength(2);
+      expect(result.conditions[0]!.met).toBe(true);
+      expect(result.conditions[1]!.met).toBe(true);
     });
 
     it("fails when chapter does not exist", async () => {
-      mockRow(false);
+      mockRow(false); // hasChapter
+      mockIsChapterPassed.mockResolvedValueOnce({ ok: true, data: { passed: false, completedRounds: 0 } });
       const result = await checkPrerequisites("proj-1", "archive", { chapterNumber: 1 });
       expect(result.passed).toBe(false);
     });
 
+    it("fails when chapter exists but review not passed", async () => {
+      mockRow(true); // hasChapter
+      mockIsChapterPassed.mockResolvedValueOnce({ ok: true, data: { passed: false, completedRounds: 2 } });
+      const result = await checkPrerequisites("proj-1", "archive", { chapterNumber: 1 });
+      expect(result.passed).toBe(false);
+      expect(result.conditions[1]!.met).toBe(false);
+    });
+
     it("defaults chapterNumber to 1 when params not provided", async () => {
-      mockRow(true);
+      mockRow(true); // hasChapter
+      mockIsChapterPassed.mockResolvedValueOnce({ ok: true, data: { passed: true, completedRounds: 4 } });
       const result = await checkPrerequisites("proj-1", "archive");
       expect(result.passed).toBe(true);
       expect(result.conditions[0]!.description).toContain("1");

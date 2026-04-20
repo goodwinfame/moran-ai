@@ -110,7 +110,10 @@ export function registerChapterTools(server: McpServer) {
       revisedContent: z.string(),
     },
   }, async ({ projectId, chapterNumber, feedback, revisedContent }) => {
-    // TODO: HARD gate — 有对应的审校报告（需 ReviewService 集成）
+    const revisePrereqs = await checkPrerequisites(projectId, "chapter_revise", { chapterNumber });
+    if (!revisePrereqs.passed) {
+      return fail("GATE_FAILED", "前置条件未满足", toGateDetails(revisePrereqs));
+    }
     const chapterResult = await chapterService.read(projectId, chapterNumber);
     if (!chapterResult.ok) return fail("NOT_FOUND", "章节不存在");
 
@@ -143,7 +146,7 @@ export function registerChapterTools(server: McpServer) {
       chapterNumber: z.number().int().positive(),
     },
   }, async ({ projectId, chapterNumber }) => {
-    const prereqs = await checkPrerequisites(projectId, "archive");
+    const prereqs = await checkPrerequisites(projectId, "archive", { chapterNumber });
     if (!prereqs.passed) {
       return fail("GATE_FAILED", "前置条件未满足", toGateDetails(prereqs));
     }

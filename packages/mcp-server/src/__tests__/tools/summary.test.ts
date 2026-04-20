@@ -21,6 +21,16 @@ vi.mock("@moran/core/services", () => ({
   },
 }));
 
+const { mockCheckPrerequisites, mockToGateDetails } = vi.hoisted(() => ({
+  mockCheckPrerequisites: vi.fn(),
+  mockToGateDetails: vi.fn(),
+}));
+
+vi.mock("../../gates/checker.js", () => ({
+  checkPrerequisites: mockCheckPrerequisites,
+  toGateDetails: mockToGateDetails,
+}));
+
 import { registerSummaryTools } from "../../tools/summary.js";
 
 const PROJECT_ID = "00000000-0000-0000-0000-000000000001";
@@ -31,6 +41,7 @@ describe("summary tools", () => {
 
   beforeEach(() => {
     vi.clearAllMocks();
+    mockCheckPrerequisites.mockResolvedValue({ passed: true, conditions: [] });
   });
 
   describe("summary_create", () => {
@@ -118,6 +129,54 @@ describe("summary tools", () => {
       const payload = parseResponse(result);
       expect(payload.ok).toBe(false);
       expect(payload.error?.code).toBe("CONFLICT");
+    });
+
+    it("blocks chapter summary when review gate not met", async () => {
+      mockCheckPrerequisites.mockResolvedValue({
+        passed: false,
+        conditions: [{ description: "第3章审校已通过（四轮完成）", level: "HARD", met: false }],
+      });
+      mockToGateDetails.mockReturnValue({
+        passed: [],
+        failed: ["第3章审校已通过（四轮完成）"],
+        suggestions: ["请先完成四轮审校后再创建摘要"],
+      });
+
+      const result = await handlers.get("summary_create")!({
+        projectId: PROJECT_ID,
+        type: "chapter",
+        chapterNumber: 3,
+        content: "摘要",
+      });
+
+      const payload = parseResponse(result);
+      expect(payload.ok).toBe(false);
+      expect(payload.error?.code).toBe("GATE_FAILED");
+      expect(mockCreateChapterSummary).not.toHaveBeenCalled();
+    });
+
+    it("blocks arc summary when arc chapters not all archived", async () => {
+      mockCheckPrerequisites.mockResolvedValue({
+        passed: false,
+        conditions: [{ description: "弧段0内所有章节已归档", level: "HARD", met: false }],
+      });
+      mockToGateDetails.mockReturnValue({
+        passed: [],
+        failed: ["弧段0内所有章节已归档"],
+        suggestions: ["弧段内尚有未归档章节"],
+      });
+
+      const result = await handlers.get("summary_create")!({
+        projectId: PROJECT_ID,
+        type: "arc",
+        arcIndex: 0,
+        content: "弧段摘要",
+      });
+
+      const payload = parseResponse(result);
+      expect(payload.ok).toBe(false);
+      expect(payload.error?.code).toBe("GATE_FAILED");
+      expect(mockCreateArcSummary).not.toHaveBeenCalled();
     });
   });
 

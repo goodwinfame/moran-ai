@@ -17,6 +17,16 @@ vi.mock("@moran/core/services", () => ({
   },
 }));
 
+const { mockCheckPrerequisites, mockToGateDetails } = vi.hoisted(() => ({
+  mockCheckPrerequisites: vi.fn(),
+  mockToGateDetails: vi.fn(),
+}));
+
+vi.mock("../../gates/checker.js", () => ({
+  checkPrerequisites: mockCheckPrerequisites,
+  toGateDetails: mockToGateDetails,
+}));
+
 import { registerThreadTools } from "../../tools/thread.js";
 
 const PROJECT_ID = "00000000-0000-0000-0000-000000000001";
@@ -28,6 +38,7 @@ describe("thread tools", () => {
 
   beforeEach(() => {
     vi.clearAllMocks();
+    mockCheckPrerequisites.mockResolvedValue({ passed: true, conditions: [] });
   });
 
   describe("thread_create", () => {
@@ -91,6 +102,30 @@ describe("thread tools", () => {
       const payload = parseResponse(result);
       expect(payload.ok).toBe(false);
       expect(payload.error?.code).toBe("INTERNAL");
+    });
+
+    it("blocks when chapter does not exist (gate not met)", async () => {
+      mockCheckPrerequisites.mockResolvedValue({
+        passed: false,
+        conditions: [{ description: "第1章内容已存在", level: "HARD", met: false }],
+      });
+      mockToGateDetails.mockReturnValue({
+        passed: [],
+        failed: ["第1章内容已存在"],
+        suggestions: ["伏笔必须在已有内容的章节中埋设"],
+      });
+
+      const result = await handlers.get("thread_create")!({
+        projectId: PROJECT_ID,
+        title: "伏笔",
+        description: "描述",
+        plantedChapter: 1,
+      });
+
+      const payload = parseResponse(result);
+      expect(payload.ok).toBe(false);
+      expect(payload.error?.code).toBe("GATE_FAILED");
+      expect(mockCreate).not.toHaveBeenCalled();
     });
   });
 
@@ -319,6 +354,35 @@ describe("thread tools", () => {
       const payload = parseResponse(result);
       expect(payload.ok).toBe(false);
       expect(payload.error?.code).toBe("NOT_FOUND");
+    });
+
+    it("blocks when review gate not met for thread_update", async () => {
+      mockRead.mockResolvedValue({
+        ok: true,
+        data: { id: THREAD_ID, description: "描述", status: "planted" },
+      });
+      mockCheckPrerequisites.mockResolvedValue({
+        passed: false,
+        conditions: [{ description: "第5章审校已通过", level: "HARD", met: false }],
+      });
+      mockToGateDetails.mockReturnValue({
+        passed: [],
+        failed: ["第5章审校已通过"],
+        suggestions: ["该章节审校尚未通过"],
+      });
+
+      const result = await handlers.get("thread_update")!({
+        projectId: PROJECT_ID,
+        threadId: THREAD_ID,
+        action: "advance",
+        chapterNumber: 5,
+        note: "note",
+      });
+
+      const payload = parseResponse(result);
+      expect(payload.ok).toBe(false);
+      expect(payload.error?.code).toBe("GATE_FAILED");
+      expect(mockUpdate).not.toHaveBeenCalled();
     });
   });
 });

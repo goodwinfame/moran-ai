@@ -17,6 +17,7 @@ import type { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { z } from "zod";
 import { characterService } from "@moran/core/services";
 import { ok, fail, fromService } from "../utils/response.js";
+import { checkPrerequisites, toGateDetails } from "../gates/checker.js";
 
 interface StateInput {
   location?: string;
@@ -39,8 +40,11 @@ export function registerCharacterStateTools(server: McpServer) {
         "JSON：{ location?, mood?, knowledgeGained?: string[], lieProgress?: number(0-1), injuries?: string[], inventory?: string[], notes?: string }",
       ),
     },
-  }, async ({ characterId, chapterNumber, state: stateJson }) => {
-    // TODO: HARD gate — 该章节内容已存在（需 chapterService 集成）
+  }, async ({ projectId, characterId, chapterNumber, state: stateJson }) => {
+    const prereqs = await checkPrerequisites(projectId, "character_state_record", { chapterNumber });
+    if (!prereqs.passed) {
+      return fail("GATE_FAILED", "前置条件未满足", toGateDetails(prereqs));
+    }
     let parsed: StateInput;
     try {
       parsed = JSON.parse(stateJson) as StateInput;
