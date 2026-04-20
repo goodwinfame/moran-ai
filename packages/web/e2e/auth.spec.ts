@@ -131,8 +131,7 @@ test.describe("Authentication", () => {
 
   // ── Auth middleware ─────────────────────────────────────────────────────────
 
-  // TODO: Enable after implementing Next.js auth middleware (middleware.ts)
-  test.skip("redirects to login when accessing projects without auth", async ({
+  test("redirects to login when accessing projects without auth", async ({
     page,
   }) => {
     // Visit a project page without setting the session_id cookie.
