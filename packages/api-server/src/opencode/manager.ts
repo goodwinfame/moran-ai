@@ -259,35 +259,34 @@ export class OpenCodeSessionManager {
     const stream = new ReadableStream<OpenCodeEvent>({
       async start(controller) {
         try {
-          const eventStream = await client.global.event();
-          const reader = eventStream as unknown as AsyncIterable<{ data: string }>;
-          for await (const event of reader) {
+          // The SDK's ServerSentEventsResult generic doesn't match runtime behavior.
+          // At runtime, the SSE stream yields parsed GlobalEvent objects: { directory, payload }.
+          // The original code also used `as unknown as` for this same SDK typing issue.
+          const result = await client.global.event();
+          const events = result.stream as unknown as AsyncIterable<{
+            payload: { type: string; properties: Record<string, unknown> };
+          }>;
+          for await (const event of events) {
             if (abortController.signal.aborted) break;
-            try {
-              const parsed = JSON.parse(event.data) as {
-                payload?: {
-                  type?: string;
-                  properties?: Record<string, unknown>;
-                };
-              };
-              const payload = parsed.payload;
-              if (!payload) continue;
-              const props = payload.properties ?? {};
-              const eventSessionId =
-                (props["sessionID"] as string | undefined) ??
-                (props["info"] as { sessionID?: string } | undefined)
-                  ?.sessionID ??
-                (props["part"] as { sessionID?: string } | undefined)
-                  ?.sessionID;
-              if (eventSessionId === sessionId) {
-                controller.enqueue({
-                  type: payload.type ?? "",
-                  sessionId: eventSessionId,
-                  data: props,
-                });
-              }
-            } catch {
-              // Skip malformed events
+            const payload = event.payload;
+            if (!payload) continue;
+            const eventType = payload.type ?? "";
+            const props = (payload.properties ?? {}) as Record<
+              string,
+              unknown
+            >;
+            const eventSessionId =
+              (props["sessionID"] as string | undefined) ??
+              (props["info"] as { sessionID?: string } | undefined)
+                ?.sessionID ??
+              (props["part"] as { sessionID?: string } | undefined)
+                ?.sessionID;
+            if (eventSessionId === sessionId) {
+              controller.enqueue({
+                type: eventType,
+                sessionId: eventSessionId,
+                data: props,
+              });
             }
           }
           controller.close();
