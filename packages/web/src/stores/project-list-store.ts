@@ -187,69 +187,89 @@ export const useProjectListStore = create<ProjectListState>()((set, get) => ({
     activeSSEClient = null;
 
     try {
-      // 3. POST /send → get { sessionId, messageId }
-      const res = await api.post<{ ok: true; data: { messageId: string; sessionId: string } }>(
-        "/api/chat/send",
-        { projectId: null, message, agent: "moheng" },
+      // 3. Get session FIRST (before sending message, before connecting SSE)
+      const sessionRes = await api.get<{ ok: true; data: { sessionId: string } }>(
+        "/api/chat/session",
       );
-      const { sessionId } = res.data;
+      const { sessionId } = sessionRes.data;
 
-      // 4. Connect SSE and accumulate response
+      // 4. Connect SSE → wait for onConnect → THEN send message
+      //    This eliminates the race condition where events are emitted
+      //    before the SSE subscription is established.
       return await new Promise<InlineReply | null>((resolve) => {
         let accumulatedText = "";
+        let messageSent = false;
 
-        const timeoutId = setTimeout(() => {
+        const finish = (text: string | null) => {
+          clearTimeout(timeoutId);
           client.disconnect();
           activeSSEClient = null;
-          if (accumulatedText) {
-            const assistantMsg: InlineMessage = { role: "assistant", content: accumulatedText };
+          if (text) {
+            const assistantMsg: InlineMessage = { role: "assistant", content: text };
             set((state) => ({
               isSending: false,
               streamingReply: "",
               inlineMessages: trimMessages([...state.inlineMessages, assistantMsg]),
             }));
-            resolve({ text: accumulatedText });
+            resolve({ text });
           } else {
-            const errorMsg: InlineMessage = { role: "assistant", content: "回复超时，请重试" };
-            set((state) => ({
-              isSending: false,
-              streamingReply: "",
-              inlineMessages: trimMessages([...state.inlineMessages, errorMsg]),
-            }));
+            set({ isSending: false, streamingReply: "" });
             resolve(null);
           }
-        }, 120_000); // 2 minute timeout
+        };
+
+        const timeoutId = setTimeout(() => {
+          finish(accumulatedText || null);
+          if (!accumulatedText) {
+            const errorMsg: InlineMessage = { role: "assistant", content: "回复超时，请重试" };
+            set((state) => ({
+              inlineMessages: trimMessages([...state.inlineMessages, errorMsg]),
+            }));
+          }
+        }, 120_000);
+
+        const sendMessage = () => {
+          if (messageSent) return;
+          messageSent = true;
+          api
+            .post("/api/chat/send", { projectId: null, message, agent: "moheng" })
+            .catch((err: unknown) => {
+              console.error("[project-list-store] POST /send failed:", err);
+              clearTimeout(timeoutId);
+              client.disconnect();
+              activeSSEClient = null;
+              const errorMsg: InlineMessage = { role: "assistant", content: "发送失败，请重试" };
+              set((state) => ({
+                isSending: false,
+                streamingReply: "",
+                inlineMessages: trimMessages([...state.inlineMessages, errorMsg]),
+              }));
+              resolve(null);
+            });
+        };
 
         const client = new SSEClient("/api", {
+          onConnect: () => {
+            // SSE stream established — NOW safe to send the message
+            sendMessage();
+          },
           text: (data) => {
+            // In case onConnect didn't fire (reconnect scenario), send on first data
+            sendMessage();
             const chunk = typeof data.text === "string" ? data.text : "";
             accumulatedText += chunk;
             set({ streamingReply: accumulatedText });
           },
           message_complete: () => {
-            clearTimeout(timeoutId);
-            client.disconnect();
-            activeSSEClient = null;
-            const assistantMsg: InlineMessage = { role: "assistant", content: accumulatedText };
-            set((state) => ({
-              isSending: false,
-              streamingReply: "",
-              inlineMessages: trimMessages([...state.inlineMessages, assistantMsg]),
-            }));
-            resolve({ text: accumulatedText });
+            finish(accumulatedText);
           },
           error: (data) => {
-            clearTimeout(timeoutId);
-            client.disconnect();
-            activeSSEClient = null;
             const errorContent = typeof data.message === "string" ? data.message : "发生错误";
             const errorMsg: InlineMessage = { role: "assistant", content: errorContent };
             set((state) => ({
-              isSending: false,
-              streamingReply: "",
               inlineMessages: trimMessages([...state.inlineMessages, errorMsg]),
             }));
-            resolve(null);
+            finish(null);
           },
         });
 

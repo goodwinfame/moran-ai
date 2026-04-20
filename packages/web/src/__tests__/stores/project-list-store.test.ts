@@ -308,38 +308,43 @@ describe("useProjectListStore", () => {
 
   describe("sendInlineMessage()", () => {
     it("adds user message immediately before API call", async () => {
-      let resolvePost!: (v: unknown) => void;
-      const postPromise = new Promise((res) => { resolvePost = res; });
-      vi.mocked(api.post).mockReturnValueOnce(postPromise as ReturnType<typeof api.post>);
+      let resolveGet!: (v: unknown) => void;
+      const getPromise = new Promise((res) => { resolveGet = res; });
+      vi.mocked(api.get).mockReturnValueOnce(getPromise as ReturnType<typeof api.get>);
+      vi.mocked(api.post).mockResolvedValueOnce({ ok: true });
 
       const sendPromise = useProjectListStore.getState().sendInlineMessage("你好");
 
+      // User message and isSending are set synchronously before the first await
       expect(useProjectListStore.getState().inlineMessages[0]).toEqual({
         role: "user",
         content: "你好",
       });
       expect(useProjectListStore.getState().isSending).toBe(true);
 
-      // Resolve post and trigger SSE completion
-      resolvePost({ ok: true, data: { messageId: "msg-1", sessionId: "sess-1" } });
-      // Wait a tick for post to resolve and SSE to connect
+      // Resolve GET → SSEClient created + connected
+      resolveGet({ ok: true, data: { sessionId: "sess-1" } });
       await new Promise((r) => setTimeout(r, 10));
-      // Trigger message_complete via SSE
+      // Trigger onConnect → internally calls api.post
+      lastSSEHandlers["onConnect"]?.({});
+      await new Promise((r) => setTimeout(r, 10));
+      // Complete the SSE stream
       lastSSEHandlers["message_complete"]?.({});
       await sendPromise;
     });
 
     it("adds assistant reply after SSE message_complete", async () => {
-      vi.mocked(api.post).mockResolvedValueOnce({
-        ok: true,
-        data: { messageId: "msg-1", sessionId: "sess-1" },
-      });
+      vi.mocked(api.get).mockResolvedValueOnce({ ok: true, data: { sessionId: "sess-1" } });
+      vi.mocked(api.post).mockResolvedValueOnce({ ok: true });
 
       const sendPromise = useProjectListStore.getState().sendInlineMessage("你好");
-      // Wait for POST to resolve and SSE to connect
+      // Wait for GET to resolve → SSEClient created + connected
+      await new Promise((r) => setTimeout(r, 10));
+      // Trigger onConnect → sendMessage() fires api.post
+      lastSSEHandlers["onConnect"]?.({});
       await new Promise((r) => setTimeout(r, 10));
 
-      // Simulate SSE text events
+      // Simulate SSE text events then completion
       lastSSEHandlers["text"]?.({ text: "我是" });
       lastSSEHandlers["text"]?.({ text: "墨衡" });
       lastSSEHandlers["message_complete"]?.({});
@@ -353,12 +358,12 @@ describe("useProjectListStore", () => {
     });
 
     it("updates streamingReply progressively", async () => {
-      vi.mocked(api.post).mockResolvedValueOnce({
-        ok: true,
-        data: { messageId: "msg-1", sessionId: "sess-1" },
-      });
+      vi.mocked(api.get).mockResolvedValueOnce({ ok: true, data: { sessionId: "sess-1" } });
+      vi.mocked(api.post).mockResolvedValueOnce({ ok: true });
 
       const sendPromise = useProjectListStore.getState().sendInlineMessage("hi");
+      await new Promise((r) => setTimeout(r, 10));
+      lastSSEHandlers["onConnect"]?.({});
       await new Promise((r) => setTimeout(r, 10));
 
       lastSSEHandlers["text"]?.({ text: "Hello" });
@@ -375,12 +380,12 @@ describe("useProjectListStore", () => {
     });
 
     it("sets isSending=false after SSE completion", async () => {
-      vi.mocked(api.post).mockResolvedValueOnce({
-        ok: true,
-        data: { messageId: "msg-1", sessionId: "sess-1" },
-      });
+      vi.mocked(api.get).mockResolvedValueOnce({ ok: true, data: { sessionId: "sess-1" } });
+      vi.mocked(api.post).mockResolvedValueOnce({ ok: true });
 
       const sendPromise = useProjectListStore.getState().sendInlineMessage("msg");
+      await new Promise((r) => setTimeout(r, 10));
+      lastSSEHandlers["onConnect"]?.({});
       await new Promise((r) => setTimeout(r, 10));
       lastSSEHandlers["message_complete"]?.({});
       await sendPromise;
@@ -389,12 +394,13 @@ describe("useProjectListStore", () => {
     });
 
     it("sends with agent=moheng and projectId=null", async () => {
-      vi.mocked(api.post).mockResolvedValueOnce({
-        ok: true,
-        data: { messageId: "msg-1", sessionId: "sess-1" },
-      });
+      vi.mocked(api.get).mockResolvedValueOnce({ ok: true, data: { sessionId: "sess-1" } });
+      vi.mocked(api.post).mockResolvedValueOnce({ ok: true });
 
       const sendPromise = useProjectListStore.getState().sendInlineMessage("hello");
+      await new Promise((r) => setTimeout(r, 10));
+      // onConnect fires api.post with the message payload
+      lastSSEHandlers["onConnect"]?.({});
       await new Promise((r) => setTimeout(r, 10));
       lastSSEHandlers["message_complete"]?.({});
       await sendPromise;
@@ -407,26 +413,28 @@ describe("useProjectListStore", () => {
     });
 
     it("connects SSE with returned sessionId", async () => {
-      vi.mocked(api.post).mockResolvedValueOnce({
-        ok: true,
-        data: { messageId: "msg-1", sessionId: "sess-xyz" },
-      });
+      // sessionId now comes from GET /api/chat/session, not POST
+      vi.mocked(api.get).mockResolvedValueOnce({ ok: true, data: { sessionId: "sess-xyz" } });
+      vi.mocked(api.post).mockResolvedValueOnce({ ok: true });
 
       const sendPromise = useProjectListStore.getState().sendInlineMessage("test");
       await new Promise((r) => setTimeout(r, 10));
-      lastSSEHandlers["message_complete"]?.({});
-      await sendPromise;
 
       expect(mockSSEConnect).toHaveBeenCalledWith("sess-xyz");
+
+      lastSSEHandlers["onConnect"]?.({});
+      await new Promise((r) => setTimeout(r, 10));
+      lastSSEHandlers["message_complete"]?.({});
+      await sendPromise;
     });
 
     it("disconnects SSE client on completion", async () => {
-      vi.mocked(api.post).mockResolvedValueOnce({
-        ok: true,
-        data: { messageId: "msg-1", sessionId: "sess-1" },
-      });
+      vi.mocked(api.get).mockResolvedValueOnce({ ok: true, data: { sessionId: "sess-1" } });
+      vi.mocked(api.post).mockResolvedValueOnce({ ok: true });
 
       const sendPromise = useProjectListStore.getState().sendInlineMessage("msg");
+      await new Promise((r) => setTimeout(r, 10));
+      lastSSEHandlers["onConnect"]?.({});
       await new Promise((r) => setTimeout(r, 10));
       lastSSEHandlers["message_complete"]?.({});
       await sendPromise;
@@ -435,12 +443,12 @@ describe("useProjectListStore", () => {
     });
 
     it("handles SSE error event", async () => {
-      vi.mocked(api.post).mockResolvedValueOnce({
-        ok: true,
-        data: { messageId: "msg-1", sessionId: "sess-1" },
-      });
+      vi.mocked(api.get).mockResolvedValueOnce({ ok: true, data: { sessionId: "sess-1" } });
+      vi.mocked(api.post).mockResolvedValueOnce({ ok: true });
 
       const sendPromise = useProjectListStore.getState().sendInlineMessage("hello");
+      await new Promise((r) => setTimeout(r, 10));
+      lastSSEHandlers["onConnect"]?.({});
       await new Promise((r) => setTimeout(r, 10));
       lastSSEHandlers["error"]?.({ message: "模型错误" });
 
@@ -455,7 +463,8 @@ describe("useProjectListStore", () => {
     });
 
     it("adds error message and returns null on network failure", async () => {
-      vi.mocked(api.post).mockRejectedValueOnce(new Error("network error"));
+      // GET /api/chat/session fails → outer catch → "网络异常，请重试"
+      vi.mocked(api.get).mockRejectedValueOnce(new Error("network error"));
 
       const result = await useProjectListStore.getState().sendInlineMessage("hello");
       expect(result).toBeNull();
@@ -465,6 +474,28 @@ describe("useProjectListStore", () => {
       const lastMsg = inlineMessages[inlineMessages.length - 1];
       expect(lastMsg?.role).toBe("assistant");
       expect(lastMsg?.content).toContain("网络异常");
+    });
+
+    it("adds error message when POST /send fails after SSE connected", async () => {
+      // GET succeeds, but POST /api/chat/send rejects → "发送失败，请重试"
+      vi.mocked(api.get).mockResolvedValueOnce({ ok: true, data: { sessionId: "sess-1" } });
+      vi.mocked(api.post).mockRejectedValueOnce(new Error("post error"));
+
+      const sendPromise = useProjectListStore.getState().sendInlineMessage("hello");
+      await new Promise((r) => setTimeout(r, 10));
+      // onConnect fires api.post which rejects
+      lastSSEHandlers["onConnect"]?.({});
+      // Wait for the POST rejection to propagate through the .catch() handler
+      await new Promise((r) => setTimeout(r, 10));
+
+      const result = await sendPromise;
+      expect(result).toBeNull();
+
+      const { inlineMessages, isSending } = useProjectListStore.getState();
+      expect(isSending).toBe(false);
+      const lastMsg = inlineMessages[inlineMessages.length - 1];
+      expect(lastMsg?.role).toBe("assistant");
+      expect(lastMsg?.content).toBe("发送失败，请重试");
     });
 
     it("trims messages to max 6 (3 rounds) when exceeded", async () => {
@@ -478,12 +509,12 @@ describe("useProjectListStore", () => {
           { role: "assistant", content: "r3a" },
         ],
       });
-      vi.mocked(api.post).mockResolvedValueOnce({
-        ok: true,
-        data: { messageId: "msg-1", sessionId: "sess-1" },
-      });
+      vi.mocked(api.get).mockResolvedValueOnce({ ok: true, data: { sessionId: "sess-1" } });
+      vi.mocked(api.post).mockResolvedValueOnce({ ok: true });
 
       const sendPromise = useProjectListStore.getState().sendInlineMessage("r4q");
+      await new Promise((r) => setTimeout(r, 10));
+      lastSSEHandlers["onConnect"]?.({});
       await new Promise((r) => setTimeout(r, 10));
       lastSSEHandlers["text"]?.({ text: "r4a" });
       lastSSEHandlers["message_complete"]?.({});
