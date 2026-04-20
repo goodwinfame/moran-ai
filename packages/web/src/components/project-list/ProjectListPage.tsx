@@ -17,6 +17,7 @@ export function ProjectListPage() {
     isLoading,
     isSending,
     inlineMessages,
+    streamingReply,
     fetchProjects,
     createProject,
     sendInlineMessage,
@@ -128,6 +129,10 @@ export function ProjectListPage() {
                 content={msg.content}
               />
             ))}
+            {/* Streaming bubble — shows accumulated text in real-time before message_complete */}
+            {isSending && streamingReply && (
+              <InlineChatBubble role="assistant" content={streamingReply} />
+            )}
           </div>
           <InlineChatInput
             ref={inputRef}
