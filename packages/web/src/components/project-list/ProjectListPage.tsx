@@ -8,6 +8,7 @@ import { ProjectCard } from "./ProjectCard";
 import { ProjectCardMenu } from "./ProjectCardMenu";
 import { InlineChatInput } from "./InlineChatInput";
 import { InlineChatBubble } from "./InlineChatBubble";
+import { ThinkingIndicator } from "./ThinkingIndicator";
 import { UserMenu } from "./UserMenu";
 
 export function ProjectListPage() {
@@ -18,6 +19,7 @@ export function ProjectListPage() {
     isSending,
     inlineMessages,
     streamingReply,
+    thinkingStatus,
     fetchProjects,
     createProject,
     sendInlineMessage,
@@ -132,6 +134,10 @@ export function ProjectListPage() {
             {/* Streaming bubble — shows accumulated text in real-time before message_complete */}
             {isSending && streamingReply && (
               <InlineChatBubble role="assistant" content={streamingReply} />
+            )}
+            {/* Thinking indicator — shown while AI is processing, before first text token */}
+            {isSending && !streamingReply && (
+              <ThinkingIndicator status={thinkingStatus} />
             )}
           </div>
           <InlineChatInput

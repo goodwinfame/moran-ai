@@ -44,6 +44,8 @@ export interface ProjectListState {
   isSending: boolean;
   inlineMessages: InlineMessage[];
   streamingReply: string;
+  /** Status text shown while AI is thinking (before first text token) */
+  thinkingStatus: string;
 
   fetchProjects: () => Promise<void>;
   createProject: (title: string, genre?: string) => Promise<string>;
@@ -70,6 +72,19 @@ function sortProjects(projects: ProjectItem[]): ProjectItem[] {
 // Max 3 rounds = 6 messages total
 const MAX_INLINE_MESSAGES = 6;
 
+/** Agent English name → Chinese display name */
+const AGENT_NAMES: Record<string, string> = {
+  moheng: "墨衡",
+  lingxi: "灵犀",
+  jiangxin: "匠心",
+  mingjing: "明镜",
+  zaishi: "载史",
+  bowen: "博闻",
+  xidian: "析典",
+  shuchong: "书虫",
+  dianjing: "点睛",
+};
+
 /** Trim to max 3 rounds (6 messages): remove the oldest pair */
 function trimMessages(msgs: InlineMessage[]): InlineMessage[] {
   if (msgs.length <= MAX_INLINE_MESSAGES) return msgs;
@@ -85,6 +100,7 @@ export const useProjectListStore = create<ProjectListState>()((set, get) => ({
   isSending: false,
   inlineMessages: [],
   streamingReply: "",
+  thinkingStatus: "",
 
   fetchProjects: async () => {
     set({ isLoading: true });
@@ -179,6 +195,7 @@ export const useProjectListStore = create<ProjectListState>()((set, get) => ({
     set((state) => ({
       isSending: true,
       streamingReply: "",
+      thinkingStatus: "正在连接...",
       inlineMessages: trimMessages([...state.inlineMessages, userMsg]),
     }));
 
@@ -209,11 +226,12 @@ export const useProjectListStore = create<ProjectListState>()((set, get) => ({
             set((state) => ({
               isSending: false,
               streamingReply: "",
+              thinkingStatus: "",
               inlineMessages: trimMessages([...state.inlineMessages, assistantMsg]),
             }));
             resolve({ text });
           } else {
-            set({ isSending: false, streamingReply: "" });
+            set({ isSending: false, streamingReply: "", thinkingStatus: "" });
             resolve(null);
           }
         };
@@ -251,6 +269,7 @@ export const useProjectListStore = create<ProjectListState>()((set, get) => ({
         const client = new SSEClient("/api", {
           onConnect: () => {
             // SSE stream established — NOW safe to send the message
+            set({ thinkingStatus: "墨衡正在思考..." });
             sendMessage();
           },
           text: (data) => {
@@ -258,7 +277,31 @@ export const useProjectListStore = create<ProjectListState>()((set, get) => ({
             sendMessage();
             const chunk = typeof data.text === "string" ? data.text : "";
             accumulatedText += chunk;
-            set({ streamingReply: accumulatedText });
+            set({ streamingReply: accumulatedText, thinkingStatus: "" });
+          },
+          tool_call: (data) => {
+            // Show which MCP tool is being called (before first text token)
+            if (!accumulatedText) {
+              const toolName = typeof data.toolName === "string" ? data.toolName : "";
+              if (toolName) {
+                set({ thinkingStatus: `正在调用 ${toolName}...` });
+              }
+            }
+          },
+          subtask_start: (data) => {
+            // Show which sub-agent is working (before first text token)
+            if (!accumulatedText) {
+              const part = data.part as Record<string, unknown> | undefined;
+              const agentId =
+                (typeof part?.["name"] === "string" ? part["name"] : "") ||
+                (typeof part?.["agent"] === "string" ? part["agent"] : "");
+              const displayName = AGENT_NAMES[agentId] ?? agentId;
+              set({
+                thinkingStatus: displayName
+                  ? `${displayName}正在工作...`
+                  : "子任务处理中...",
+              });
+            }
           },
           message_complete: () => {
             finish(accumulatedText);
