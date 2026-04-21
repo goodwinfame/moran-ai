@@ -65,9 +65,9 @@ export function createChatRoutes() {
     const t0 = Date.now();
     try {
       const sessionId = await sessionManager.getOrCreateSession(userId, effectiveProjectId);
-      log.info(`[send-timing] getOrCreateSession: +${Date.now() - t0}ms`);
+      console.log(`[send-timing] getOrCreateSession: +${Date.now() - t0}ms`);
       const result = await sessionManager.sendMessage(sessionId, message, { agent: effectiveAgent });
-      log.info(`[send-timing] promptAsync done: +${Date.now() - t0}ms`);
+      console.log(`[send-timing] promptAsync done: +${Date.now() - t0}ms`);
       return ok(c, { messageId: result.messageId, sessionId });
     } catch (err) {
       const msg = err instanceof Error ? err.message : "Failed to send message";
@@ -91,7 +91,7 @@ export function createChatRoutes() {
     return streamSSE(c, async (stream) => {
       const t0 = Date.now();
       const elapsed = (label: string) =>
-        log.info(`[sse-timing] ${label}: +${Date.now() - t0}ms`);
+        console.log(`[sse-timing] ${label}: +${Date.now() - t0}ms`);
       elapsed("streamSSE handler entered");
 
       // ── 1. Replay missed events (Last-Event-Id reconnection) ──────────────
