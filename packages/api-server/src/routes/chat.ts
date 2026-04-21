@@ -62,9 +62,12 @@ export function createChatRoutes() {
     const effectiveProjectId = projectId ?? "__global__";
     const effectiveAgent = agent ?? "moheng";
 
+    const t0 = Date.now();
     try {
       const sessionId = await sessionManager.getOrCreateSession(userId, effectiveProjectId);
+      log.info(`[send-timing] getOrCreateSession: +${Date.now() - t0}ms`);
       const result = await sessionManager.sendMessage(sessionId, message, { agent: effectiveAgent });
+      log.info(`[send-timing] promptAsync done: +${Date.now() - t0}ms`);
       return ok(c, { messageId: result.messageId, sessionId });
     } catch (err) {
       const msg = err instanceof Error ? err.message : "Failed to send message";
@@ -86,6 +89,11 @@ export function createChatRoutes() {
     const lastEventIdHeader = c.req.header("Last-Event-Id");
 
     return streamSSE(c, async (stream) => {
+      const t0 = Date.now();
+      const elapsed = (label: string) =>
+        log.info(`[sse-timing] ${label}: +${Date.now() - t0}ms`);
+      elapsed("streamSSE handler entered");
+
       // ── 1. Replay missed events (Last-Event-Id reconnection) ──────────────
       if (lastEventIdHeader) {
         const afterId = parseInt(lastEventIdHeader, 10);
@@ -117,8 +125,10 @@ export function createChatRoutes() {
       broadcaster.addConnection(sessionId, conn);
 
       // ── 3. Subscribe to OpenCode events ───────────────────────────────────
+      elapsed("subscribeEvents called");
       const transformer = new EventTransformer({ projectId, userId, sessionId });
       const { stream: eventStream, close } = sessionManager.subscribeEvents(sessionId);
+      elapsed("subscribeEvents returned");
 
       // ── 4. Heartbeat every 30 seconds ─────────────────────────────────────
       const heartbeat = setInterval(() => {
@@ -140,6 +150,7 @@ export function createChatRoutes() {
             if (done) break;
             const sseEvent = transformer.transform(value);
             if (sseEvent) {
+              if (sseEvent.type === "text") elapsed("first text event dispatched");
               broadcaster.buffer(sessionId, sseEvent);
               await stream.writeSSE({
                 id: String(sseEvent.id),

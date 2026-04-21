@@ -7,8 +7,19 @@ import { create } from "zustand";
 import { api } from "@/lib/api";
 import { SSEClient } from "@/lib/sse-client";
 
-// Module-level SSE client for cleanup (NOT in Zustand state — avoids serialization issues)
-let activeSSEClient: SSEClient | null = null;
+// Persistent SSE client — lives for the duration of the page session
+let persistentSSEClient: SSEClient | null = null;
+// Handlers for the currently in-flight message (replaced per message)
+let currentMessageHandlers: {
+  onText: (data: Record<string, unknown>) => void;
+  onToolCall: (data: Record<string, unknown>) => void;
+  onSubtaskStart: (data: Record<string, unknown>) => void;
+  onMessageComplete: () => void;
+  onError: (data: Record<string, unknown>) => void;
+} | null = null;
+// Resolve waiting for SSE connection to be ready
+let sseReadyResolve: (() => void) | null = null;
+let sseReady = false;
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
@@ -56,7 +67,7 @@ export interface ProjectListState {
   renameProject: (id: string, title: string) => Promise<void>;
   pinProject: (id: string) => Promise<void>;
   archiveProject: (id: string) => Promise<void>;
-  /** Pre-warm the OpenCode session so first message doesn't block on session creation */
+  /** Pre-warm the OpenCode session and establish persistent SSE connection */
   initSession: () => Promise<void>;
   sendInlineMessage: (message: string) => Promise<InlineReply | null>;
   clearInlineMessages: () => void;
@@ -137,183 +148,270 @@ function buildContextMessage(message: string, projects: ProjectItem[]): string {
 
 // ── Store ─────────────────────────────────────────────────────────────────────
 
-export const useProjectListStore = create<ProjectListState>()((set, get) => ({
-  projects: [],
-  isLoading: false,
-  isSending: false,
-  inlineMessages: [],
-  streamingReply: "",
-  thinkingStatus: "",
-  sessionId: null,
+export const useProjectListStore = create<ProjectListState>()((set, get) => {
+  // Inner helper — accesses module-level SSE vars; closed over set for onConnect
+  function createPersistentClient(sessionId: string): SSEClient {
+    sseReady = false;
+    return new SSEClient("/api", {
+      onConnect: () => {
+        console.log("[chat-timing] persistent SSE onConnect");
+        sseReady = true;
+        sseReadyResolve?.();
+        sseReadyResolve = null;
+      },
+      text: (data) => {
+        currentMessageHandlers?.onText(data);
+      },
+      tool_call: (data) => {
+        currentMessageHandlers?.onToolCall(data);
+      },
+      subtask_start: (data) => {
+        currentMessageHandlers?.onSubtaskStart(data);
+      },
+      message_complete: () => {
+        currentMessageHandlers?.onMessageComplete();
+      },
+      error: (data) => {
+        currentMessageHandlers?.onError(data);
+      },
+    });
+  }
 
-  fetchProjects: async () => {
-    set({ isLoading: true });
-    try {
-      const res = await api.get<{ ok: true; data: ProjectItem[] }>("/api/projects");
-      set({ projects: sortProjects(res.data), isLoading: false });
-    } catch (err) {
-      console.error("[project-list-store] fetchProjects failed:", err);
-      set({ isLoading: false });
-    }
-  },
+  return {
+    projects: [],
+    isLoading: false,
+    isSending: false,
+    inlineMessages: [],
+    streamingReply: "",
+    thinkingStatus: "",
+    sessionId: null,
 
-  createProject: async (title: string, genre?: string) => {
-    try {
-      const res = await api.post<{ ok: true; data: ProjectItem }>("/api/projects", {
-        title,
-        genre,
-      });
-      const newProject = res.data;
-      set((state) => ({
-        projects: sortProjects([...state.projects, newProject]),
-      }));
-      return newProject.id;
-    } catch (err) {
-      console.error("[project-list-store] createProject failed:", err);
-      return "";
-    }
-  },
+    fetchProjects: async () => {
+      set({ isLoading: true });
+      try {
+        const res = await api.get<{ ok: true; data: ProjectItem[] }>("/api/projects");
+        set({ projects: sortProjects(res.data), isLoading: false });
+      } catch (err) {
+        console.error("[project-list-store] fetchProjects failed:", err);
+        set({ isLoading: false });
+      }
+    },
 
-  deleteProject: async (id: string) => {
-    try {
-      await api.delete<{ ok: true }>(`/api/projects/${id}`);
-      set((state) => ({
-        projects: state.projects.filter((p) => p.id !== id),
-      }));
-    } catch (err) {
-      console.error("[project-list-store] deleteProject failed:", err);
-    }
-  },
+    createProject: async (title: string, genre?: string) => {
+      try {
+        const res = await api.post<{ ok: true; data: ProjectItem }>("/api/projects", {
+          title,
+          genre,
+        });
+        const newProject = res.data;
+        set((state) => ({
+          projects: sortProjects([...state.projects, newProject]),
+        }));
+        return newProject.id;
+      } catch (err) {
+        console.error("[project-list-store] createProject failed:", err);
+        return "";
+      }
+    },
 
-  renameProject: async (id: string, title: string) => {
-    try {
-      const res = await api.put<{ ok: true; data: ProjectItem }>(`/api/projects/${id}`, {
-        title,
-      });
-      const updated = res.data;
-      set((state) => ({
-        projects: sortProjects(
-          state.projects.map((p) => (p.id === id ? { ...p, ...updated } : p)),
-        ),
-      }));
-    } catch (err) {
-      console.error("[project-list-store] renameProject failed:", err);
-    }
-  },
+    deleteProject: async (id: string) => {
+      try {
+        await api.delete<{ ok: true }>(`/api/projects/${id}`);
+        set((state) => ({
+          projects: state.projects.filter((p) => p.id !== id),
+        }));
+      } catch (err) {
+        console.error("[project-list-store] deleteProject failed:", err);
+      }
+    },
 
-  pinProject: async (id: string) => {
-    const current = get().projects.find((p) => p.id === id);
-    if (!current) return;
-    const isPinned = !current.isPinned;
-    try {
-      const res = await api.put<{ ok: true; data: ProjectItem }>(`/api/projects/${id}`, {
-        isPinned,
-      });
-      const updated = res.data;
-      set((state) => ({
-        projects: sortProjects(
-          state.projects.map((p) => (p.id === id ? { ...p, ...updated } : p)),
-        ),
-      }));
-    } catch (err) {
-      console.error("[project-list-store] pinProject failed:", err);
-    }
-  },
+    renameProject: async (id: string, title: string) => {
+      try {
+        const res = await api.put<{ ok: true; data: ProjectItem }>(`/api/projects/${id}`, {
+          title,
+        });
+        const updated = res.data;
+        set((state) => ({
+          projects: sortProjects(
+            state.projects.map((p) => (p.id === id ? { ...p, ...updated } : p)),
+          ),
+        }));
+      } catch (err) {
+        console.error("[project-list-store] renameProject failed:", err);
+      }
+    },
 
-  archiveProject: async (id: string) => {
-    try {
-      await api.put<{ ok: true; data: ProjectItem }>(`/api/projects/${id}`, {
-        status: "archived",
-      });
-      set((state) => ({
-        projects: state.projects.filter((p) => p.id !== id),
-      }));
-    } catch (err) {
-      console.error("[project-list-store] archiveProject failed:", err);
-    }
-  },
+    pinProject: async (id: string) => {
+      const current = get().projects.find((p) => p.id === id);
+      if (!current) return;
+      const isPinned = !current.isPinned;
+      try {
+        const res = await api.put<{ ok: true; data: ProjectItem }>(`/api/projects/${id}`, {
+          isPinned,
+        });
+        const updated = res.data;
+        set((state) => ({
+          projects: sortProjects(
+            state.projects.map((p) => (p.id === id ? { ...p, ...updated } : p)),
+          ),
+        }));
+      } catch (err) {
+        console.error("[project-list-store] pinProject failed:", err);
+      }
+    },
 
-  initSession: async () => {
-    try {
-      const res = await api.get<{ ok: true; data: { sessionId: string } }>(
-        "/api/chat/session",
-      );
-      set({ sessionId: res.data.sessionId });
-    } catch (err) {
-      console.error("[project-list-store] initSession failed:", err);
-      // Non-fatal: sendInlineMessage will fall back to fetching session on demand
-    }
-  },
+    archiveProject: async (id: string) => {
+      try {
+        await api.put<{ ok: true; data: ProjectItem }>(`/api/projects/${id}`, {
+          status: "archived",
+        });
+        set((state) => ({
+          projects: state.projects.filter((p) => p.id !== id),
+        }));
+      } catch (err) {
+        console.error("[project-list-store] archiveProject failed:", err);
+      }
+    },
 
-  sendInlineMessage: async (message: string) => {
-    // 1. Add user message immediately
-    const userMsg: InlineMessage = { role: "user", content: message };
-    set((state) => ({
-      isSending: true,
-      streamingReply: "",
-      thinkingStatus: "正在连接...",
-      inlineMessages: trimMessages([...state.inlineMessages, userMsg]),
-    }));
-
-    // 2. Disconnect any previous SSE client
-    activeSSEClient?.disconnect();
-    activeSSEClient = null;
-
-    try {
-      // 3. Use pre-warmed session or fetch on demand (fallback)
-      let sessionId = get().sessionId;
-      if (!sessionId) {
-        const sessionRes = await api.get<{ ok: true; data: { sessionId: string } }>(
+    initSession: async () => {
+      try {
+        const res = await api.get<{ ok: true; data: { sessionId: string } }>(
           "/api/chat/session",
         );
-        sessionId = sessionRes.data.sessionId;
+        const sessionId = res.data.sessionId;
         set({ sessionId });
+        // Establish persistent SSE connection
+        persistentSSEClient?.disconnect();
+        sseReady = false;
+        sseReadyResolve = null;
+        persistentSSEClient = createPersistentClient(sessionId);
+        persistentSSEClient.connect(sessionId);
+        console.log("[chat-timing] initSession: session ready, SSE connecting");
+      } catch (err) {
+        console.error("[project-list-store] initSession failed:", err);
       }
+    },
 
-      // 4. Build message with project context for moheng-home
-      const contextMessage = buildContextMessage(message, get().projects);
+    sendInlineMessage: async (message: string) => {
+      const userMsg: InlineMessage = { role: "user", content: message };
+      set((state) => ({
+        isSending: true,
+        streamingReply: "",
+        thinkingStatus: "墨衡正在思考...",
+        inlineMessages: trimMessages([...state.inlineMessages, userMsg]),
+      }));
 
-      // 5. Connect SSE → wait for onConnect → THEN send message
-      //    This eliminates the race condition where events are emitted
-      //    before the SSE subscription is established.
-      return await new Promise<InlineReply | null>((resolve) => {
-        let accumulatedText = "";
-        let messageSent = false;
+      const t0 = performance.now();
+      const elapsed = (label: string) =>
+        console.log(`[chat-timing] ${label}: +${(performance.now() - t0).toFixed(0)}ms`);
 
-        const finish = (text: string | null) => {
-          clearTimeout(timeoutId);
-          client.disconnect();
-          activeSSEClient = null;
-          if (text) {
-            const action = parseAction(text);
-            const displayText = stripAction(text);
-            const assistantMsg: InlineMessage = { role: "assistant", content: displayText };
-            set((state) => ({
-              isSending: false,
-              streamingReply: "",
-              thinkingStatus: "",
-              inlineMessages: trimMessages([...state.inlineMessages, assistantMsg]),
-            }));
-            resolve({ text: displayText, action });
-          } else {
-            set({ isSending: false, streamingReply: "", thinkingStatus: "" });
-            resolve(null);
-          }
-        };
+      try {
+        // Ensure session exists (fallback if initSession wasn't called or failed)
+        let sessionId = get().sessionId;
+        if (!sessionId) {
+          elapsed("no session — calling initSession");
+          await get().initSession();
+          sessionId = get().sessionId;
+        }
+        if (!sessionId) {
+          throw new Error("Failed to get session");
+        }
 
-        const timeoutId = setTimeout(() => {
-          finish(accumulatedText || null);
-          if (!accumulatedText) {
-            const errorMsg: InlineMessage = { role: "assistant", content: "回复超时，请重试" };
-            set((state) => ({
-              inlineMessages: trimMessages([...state.inlineMessages, errorMsg]),
-            }));
-          }
-        }, 120_000);
+        // Ensure SSE is connected — wait up to 10s if still connecting
+        if (!sseReady) {
+          elapsed("SSE not ready yet — waiting");
+          await new Promise<void>((resolve) => {
+            const timeout = setTimeout(() => {
+              sseReadyResolve = null;
+              resolve(); // proceed anyway after timeout
+            }, 10_000);
+            sseReadyResolve = () => {
+              clearTimeout(timeout);
+              resolve();
+            };
+          });
+          elapsed("SSE ready (waited)");
+        }
 
-        const sendMessage = () => {
-          if (messageSent) return;
-          messageSent = true;
+        const contextMessage = buildContextMessage(message, get().projects);
+
+        return await new Promise<InlineReply | null>((resolve) => {
+          let accumulatedText = "";
+
+          const finish = (text: string | null) => {
+            clearTimeout(timeoutId);
+            currentMessageHandlers = null;
+            if (text) {
+              const action = parseAction(text);
+              const displayText = stripAction(text);
+              const assistantMsg: InlineMessage = { role: "assistant", content: displayText };
+              set((state) => ({
+                isSending: false,
+                streamingReply: "",
+                thinkingStatus: "",
+                inlineMessages: trimMessages([...state.inlineMessages, assistantMsg]),
+              }));
+              resolve({ text: displayText, action });
+            } else {
+              set({ isSending: false, streamingReply: "", thinkingStatus: "" });
+              resolve(null);
+            }
+          };
+
+          const timeoutId = setTimeout(() => {
+            finish(accumulatedText || null);
+            if (!accumulatedText) {
+              set((state) => ({
+                inlineMessages: trimMessages([
+                  ...state.inlineMessages,
+                  { role: "assistant", content: "回复超时，请重试" },
+                ]),
+              }));
+            }
+          }, 120_000);
+
+          currentMessageHandlers = {
+            onText: (data) => {
+              elapsed("first text token");
+              const chunk = typeof data.text === "string" ? data.text : "";
+              accumulatedText += chunk;
+              set({ streamingReply: stripAction(accumulatedText), thinkingStatus: "" });
+            },
+            onToolCall: (data) => {
+              if (!accumulatedText) {
+                const toolName = typeof data.toolName === "string" ? data.toolName : "";
+                if (toolName) set({ thinkingStatus: `正在调用 ${toolName}...` });
+              }
+            },
+            onSubtaskStart: (data) => {
+              if (!accumulatedText) {
+                const part = data.part as Record<string, unknown> | undefined;
+                const agentId =
+                  (typeof part?.["name"] === "string" ? part["name"] : "") ||
+                  (typeof part?.["agent"] === "string" ? part["agent"] : "");
+                const displayName = AGENT_NAMES[agentId] ?? agentId;
+                set({
+                  thinkingStatus: displayName ? `${displayName}正在工作...` : "子任务处理中...",
+                });
+              }
+            },
+            onMessageComplete: () => {
+              elapsed("message_complete");
+              finish(accumulatedText);
+            },
+            onError: (data) => {
+              const errorContent = typeof data.message === "string" ? data.message : "发生错误";
+              set((state) => ({
+                inlineMessages: trimMessages([
+                  ...state.inlineMessages,
+                  { role: "assistant", content: errorContent },
+                ]),
+              }));
+              finish(null);
+            },
+          };
+
+          elapsed("POST /send fired");
           api
             .post("/api/chat/send", {
               projectId: null,
@@ -323,87 +421,35 @@ export const useProjectListStore = create<ProjectListState>()((set, get) => ({
             .catch((err: unknown) => {
               console.error("[project-list-store] POST /send failed:", err);
               clearTimeout(timeoutId);
-              client.disconnect();
-              activeSSEClient = null;
-              const errorMsg: InlineMessage = { role: "assistant", content: "发送失败，请重试" };
+              currentMessageHandlers = null;
               set((state) => ({
                 isSending: false,
                 streamingReply: "",
-                inlineMessages: trimMessages([...state.inlineMessages, errorMsg]),
+                inlineMessages: trimMessages([
+                  ...state.inlineMessages,
+                  { role: "assistant", content: "发送失败，请重试" },
+                ]),
               }));
               resolve(null);
             });
-        };
-
-        const client = new SSEClient("/api", {
-          onConnect: () => {
-            // SSE stream established — NOW safe to send the message
-            set({ thinkingStatus: "墨衡正在思考..." });
-            sendMessage();
-          },
-          text: (data) => {
-            // In case onConnect didn't fire (reconnect scenario), send on first data
-            sendMessage();
-            const chunk = typeof data.text === "string" ? data.text : "";
-            accumulatedText += chunk;
-            // Strip action markers from streaming display
-            set({ streamingReply: stripAction(accumulatedText), thinkingStatus: "" });
-          },
-          tool_call: (data) => {
-            // moheng-home should NOT call tools, but handle gracefully
-            if (!accumulatedText) {
-              const toolName = typeof data.toolName === "string" ? data.toolName : "";
-              if (toolName) {
-                set({ thinkingStatus: `正在调用 ${toolName}...` });
-              }
-            }
-          },
-          subtask_start: (data) => {
-            // moheng-home should NOT delegate, but handle gracefully
-            if (!accumulatedText) {
-              const part = data.part as Record<string, unknown> | undefined;
-              const agentId =
-                (typeof part?.["name"] === "string" ? part["name"] : "") ||
-                (typeof part?.["agent"] === "string" ? part["agent"] : "");
-              const displayName = AGENT_NAMES[agentId] ?? agentId;
-              set({
-                thinkingStatus: displayName
-                  ? `${displayName}正在工作...`
-                  : "子任务处理中...",
-              });
-            }
-          },
-          message_complete: () => {
-            finish(accumulatedText);
-          },
-          error: (data) => {
-            const errorContent = typeof data.message === "string" ? data.message : "发生错误";
-            const errorMsg: InlineMessage = { role: "assistant", content: errorContent };
-            set((state) => ({
-              inlineMessages: trimMessages([...state.inlineMessages, errorMsg]),
-            }));
-            finish(null);
-          },
         });
+      } catch (err) {
+        console.error("[project-list-store] sendInlineMessage failed:", err);
+        set((state) => ({
+          isSending: false,
+          streamingReply: "",
+          inlineMessages: trimMessages([
+            ...state.inlineMessages,
+            { role: "assistant", content: "网络异常，请重试" },
+          ]),
+        }));
+        return null;
+      }
+    },
 
-        activeSSEClient = client;
-        client.connect(sessionId);
-      });
-    } catch (err) {
-      console.error("[project-list-store] sendInlineMessage failed:", err);
-      const errorMsg: InlineMessage = { role: "assistant", content: "网络异常，请重试" };
-      set((state) => ({
-        isSending: false,
-        streamingReply: "",
-        inlineMessages: trimMessages([...state.inlineMessages, errorMsg]),
-      }));
-      return null;
-    }
-  },
-
-  clearInlineMessages: () => {
-    activeSSEClient?.disconnect();
-    activeSSEClient = null;
-    set({ inlineMessages: [], streamingReply: "" });
-  },
-}));
+    clearInlineMessages: () => {
+      currentMessageHandlers = null;
+      set({ inlineMessages: [], streamingReply: "" });
+    },
+  };
+});
