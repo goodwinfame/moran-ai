@@ -419,7 +419,8 @@ export const useProjectListStore = create<ProjectListState>()((set, get) => {
               agent: "moheng-home",
             })
             .catch((err: unknown) => {
-              console.error("[project-list-store] POST /send failed:", err);
+              const errStr = typeof err === "object" && err !== null ? JSON.stringify(err) : String(err);
+              console.error("[project-list-store] POST /send failed:", errStr);
               clearTimeout(timeoutId);
               currentMessageHandlers = null;
               set((state) => ({

@@ -23,21 +23,30 @@ class ApiClient {
     options?: RequestInit,
   ): Promise<T> {
     const url = `${this.baseUrl}${path}`;
-    const res = await fetch(url, {
-      ...options,
-      headers: {
-        "Content-Type": "application/json",
-        ...options?.headers,
-      },
-    });
+    let res: Response;
+    try {
+      res = await fetch(url, {
+        ...options,
+        credentials: "include",
+        headers: {
+          "Content-Type": "application/json",
+          ...options?.headers,
+        },
+      });
+    } catch (networkErr) {
+      console.error(`[api] network error on ${options?.method ?? "GET"} ${path}:`, networkErr);
+      throw networkErr;
+    }
 
     if (!res.ok) {
       const body = await res.json().catch(() => ({ error: res.statusText }));
-      throw {
+      const err = {
         error: body.error ?? "Unknown error",
         message: body.message,
         status: res.status,
       } satisfies ApiError;
+      console.error(`[api] ${options?.method ?? "GET"} ${path} → ${res.status}`, err);
+      throw err;
     }
 
     return res.json() as Promise<T>;
